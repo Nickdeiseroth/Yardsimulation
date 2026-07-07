@@ -34,7 +34,7 @@ export function createAssignmentModule(config: Partial<AssignmentModuleConfig> =
         }
         truck.targetSlotId = freeSlot.id;
         truck.status = 'moving';
-        state.movements[truckId] = cfg.travelMinutesToDock;
+        state.movements[truckId] = { remaining: cfg.travelMinutesToDock, total: cfg.travelMinutesToDock };
         state.slotOccupancy[freeSlot.id] = { truckId };
         log(`${truckId} fährt zu Rampe ${freeSlot.id}`);
       }

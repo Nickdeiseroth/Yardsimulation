@@ -14,7 +14,7 @@ export function StatsPanel() {
   });
 
   return (
-    <div className="stats-panel">
+    <>
       <h3>Kennzahlen</h3>
       <div className="stats-row">
         <span>Aktive LKW im Yard</span>
@@ -42,6 +42,6 @@ export function StatsPanel() {
           ))}
         </tbody>
       </table>
-    </div>
+    </>
   );
 }

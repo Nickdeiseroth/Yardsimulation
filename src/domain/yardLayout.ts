@@ -151,6 +151,8 @@ export const yardLayout: YardLayout = {
   bounds: { width: 1220, height: 1130 },
 };
 
+export const slotById = new Map(slots.map((s) => [s.id, s]));
+
 export function getZone(zoneId: string): Zone {
   const zone = zoneById.get(zoneId);
   if (!zone) throw new Error(`Unknown zone ${zoneId}`);

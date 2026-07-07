@@ -65,10 +65,12 @@ export function createDwellDepartureModule(config: Partial<DwellDepartureModuleC
           }
         }
 
-        truck.currentSlotId = undefined;
+        // currentSlotId bleibt bewusst gesetzt (= Ausgangsrampe), damit die
+        // Visualisierung die Rückfahrt-Route rekonstruieren kann; movement.ts
+        // räumt es erst bei Ankunft am Gate auf.
         truck.targetSlotId = GATE_EXIT;
         truck.status = 'moving';
-        state.movements[truck.id] = cfg.travelMinutesToGate;
+        state.movements[truck.id] = { remaining: cfg.travelMinutesToGate, total: cfg.travelMinutesToGate };
       }
     },
   };

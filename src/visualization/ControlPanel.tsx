@@ -23,7 +23,8 @@ export function ControlPanel() {
   const setMode = useSimulationStore((s) => s.setMode);
 
   return (
-    <div className="control-panel">
+    <>
+      <h3>Steuerung</h3>
       <div className="control-row">
         <label htmlFor="mode-select">Modus</label>
         <select id="mode-select" value={modeId} onChange={(e) => setMode(e.target.value)}>
@@ -57,6 +58,6 @@ export function ControlPanel() {
       </div>
 
       <div className="control-row sim-time">Simulationszeit: {formatSimTime(time)}</div>
-    </div>
+    </>
   );
 }

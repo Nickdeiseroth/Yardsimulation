@@ -20,8 +20,13 @@ export interface SimulationState {
   slotOccupancy: Record<string, SlotOccupant>;
   /** LKW, die am Gate auf Einweisung warten. */
   gateQueue: string[];
-  /** truckId -> verbleibende Minuten bis Ankunft am Ziel-Slot bzw. Gate. */
-  movements: Record<string, number>;
+  /**
+   * truckId -> laufende Fahrt zum Ziel-Slot bzw. Gate. `total` bleibt über die
+   * gesamte Fahrt konstant, `remaining` zählt runter - daraus lässt sich der
+   * Fortschritt (0..1) für die Positions-Interpolation in der Visualisierung
+   * ableiten (siehe visualization/roadNetwork.ts).
+   */
+  movements: Record<string, { remaining: number; total: number }>;
   /** truckId -> verbleibende Minuten Lade-/Entladezeit an der Rampe. */
   dwellTimers: Record<string, number>;
   events: SimulationEvent[];

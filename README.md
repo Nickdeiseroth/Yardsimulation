@@ -41,6 +41,10 @@ src/
   store/
     simulationStore.ts  Zustand-Store: hält Engine-Instanz, Play/Pause/Speed, Modus-Registry
   visualization/       React/SVG-Darstellung des Yards (liest nur aus Snapshot + yardLayout)
+    roadNetwork.ts       Statische Straßen-Geometrie (Ringstraße + Gate) und Routenberechnung
+    truckPosition.ts     Leitet aus Truck-Status/Movement die aktuelle Position+Blickrichtung ab
+    TruckMarker.tsx       LKW-Symbol (Position/Rotation/Farbe je nach Ladung)
+    YardMap.tsx            Setzt Zonen, Halle, Straßen, Slots und LKW-Marker zum SVG zusammen
 ```
 
 ### Baukasten-Prinzip
@@ -108,6 +112,30 @@ gemeinsam als Grundlage nutzen.
 5. Fährt zum Gate und verlässt den Yard.
 6. Parallel: der Rangierdienst bringt an der Rampe zurückgelassene
    Ladeeinheiten in ihre Lagerzone (LEWB/SA) und gibt die Rampe frei.
+
+### Fahrtwege
+
+LKW fahren nicht auf direktem Weg (Luftlinie) zu ihrem Ziel, sondern entlang
+eines einfachen Straßennetzes (`visualization/roadNetwork.ts`): einer
+rechteckigen Ringstraße in den Gassen zwischen den Stellplatzblöcken, plus
+einem Gate-Stichweg unten links. Jede Zone bindet über einen kurzen Stich an
+die nächstliegende Kante der Ringstraße an; die Route von/zum Gate nimmt
+jeweils den kürzeren Weg um den Ring (im bzw. gegen den Uhrzeigersinn).
+
+Damit das funktioniert, hält der Simulationsstate pro laufender Fahrt nicht
+nur die Restzeit, sondern auch die Gesamtdauer (`state.movements[truckId] =
+{ remaining, total }`) sowie Ausgangs- und Zielort (`truck.currentSlotId` /
+`truck.targetSlotId`, bleibt während der Fahrt gesetzt). Aus Fortschritt
+(`1 - remaining/total`) und der berechneten Route interpoliert
+`visualization/truckPosition.ts` Bildschirmposition und Blickrichtung; die
+`TruckMarker`-Komponente animiert das per CSS-Transition zwischen zwei
+Simulations-Ticks weich statt sprunghaft.
+
+Das ist bewusst kein echtes Pathfinding (keine Kollisionsvermeidung,
+kein Gegenverkehr) - reicht aber, um Bewegungen nachvollziehbar entlang
+plausibler Wege statt geradlinig durch die Halle zu zeigen. Ein künftiges
+`ShuntingTruckModule` (siehe oben) könnte dieselbe Routing-Geometrie für
+echte Rangier-Fahrzeuge wiederverwenden.
 
 ## Tech-Stack
 

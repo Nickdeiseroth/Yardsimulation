@@ -18,13 +18,23 @@ function App() {
 
       <main className="app-main">
         <div className="map-column">
-          <YardMap snapshot={snapshot} />
-          <Legend />
+          <div className="map-card">
+            <YardMap snapshot={snapshot} />
+          </div>
+          <div className="panel">
+            <Legend />
+          </div>
         </div>
         <aside className="side-column">
-          <ControlPanel />
-          <StatsPanel />
-          <EventLog />
+          <div className="panel">
+            <ControlPanel />
+          </div>
+          <div className="panel">
+            <StatsPanel />
+          </div>
+          <div className="panel event-log">
+            <EventLog />
+          </div>
         </aside>
       </main>
     </div>

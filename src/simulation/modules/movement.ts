@@ -9,21 +9,22 @@ export function createMovementModule(): SimulationModule {
     description: 'Reduziert die Restfahrzeit bewegter LKW pro Tick und meldet Ankunft am Ziel-Slot bzw. Gate.',
     onTick(ctx) {
       const { state, dt, log } = ctx;
-      for (const [truckId, remaining] of Object.entries(state.movements)) {
-        const next = remaining - dt;
+      for (const [truckId, movement] of Object.entries(state.movements)) {
+        const next = movement.remaining - dt;
         const truck = state.trucks[truckId];
         if (!truck) {
           delete state.movements[truckId];
           continue;
         }
         if (next > 0) {
-          state.movements[truckId] = next;
+          movement.remaining = next;
           continue;
         }
         delete state.movements[truckId];
 
         if (truck.targetSlotId === GATE_EXIT) {
           truck.status = 'departed';
+          truck.currentSlotId = undefined;
           log(`${truckId} verlässt den Yard${truck.cargo ? ` mit ${truck.cargo.type} ${truck.cargo.id}` : ' leer (Solo)'}`);
           continue;
         }

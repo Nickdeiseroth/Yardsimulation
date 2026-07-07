@@ -10,7 +10,7 @@ export function EventLog() {
   const events = useSimulationStore((s) => s.snapshot.events);
 
   return (
-    <div className="event-log">
+    <>
       <h3>Ereignisprotokoll</h3>
       <ul>
         {[...events]
@@ -22,6 +22,6 @@ export function EventLog() {
             </li>
           ))}
       </ul>
-    </div>
+    </>
   );
 }
