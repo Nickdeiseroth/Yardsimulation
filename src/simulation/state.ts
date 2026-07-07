@@ -29,6 +29,19 @@ export interface SimulationState {
   movements: Record<string, { remaining: number; total: number }>;
   /** truckId -> verbleibende Minuten Lade-/Entladezeit an der Rampe. */
   dwellTimers: Record<string, number>;
+  /**
+   * Generischer, benannter Zähler-Baustein für Modi, die eigene Kennzahlen
+   * führen (z.B. "physical"/"system" in Szenario 1). Module lesen/schreiben
+   * direkt per Schlüssel; welche Zähler angezeigt werden, legt der aktive
+   * Modus über `SimulationModeDefinition.counterDefinitions` fest.
+   */
+  counters: Record<string, number>;
+  /**
+   * Generische FIFO-Warteliste für Module mit fest verskripteten (statt
+   * zufälligen) Ankünften: Einträge sind frei wählbare Tags, die ein
+   * Ankunfts-Modul nach und nach abarbeitet (siehe Szenario 1).
+   */
+  spawnQueue: string[];
   events: SimulationEvent[];
   nextTruckSeq: number;
   nextCargoSeq: number;
@@ -43,6 +56,8 @@ export function createInitialState(): SimulationState {
     gateQueue: [],
     movements: {},
     dwellTimers: {},
+    counters: {},
+    spawnQueue: [],
     events: [],
     nextTruckSeq: 1,
     nextCargoSeq: 1,

@@ -60,7 +60,12 @@ export interface YardLayout {
 export interface CargoUnit {
   id: string;
   type: CargoUnitType;
-  /** Kundenreferenz/Ladung, rein informativ für den Baukasten. */
+  /**
+   * Kundenreferenz/Ladung, rein informativ für den Baukasten - Simulationsmodi
+   * können dieses Feld aber auch als eigene Verkehrstyp-Kennung nutzen (z.B.
+   * "sgut"/"nv"/"leer-ein"/"leer-aus" in Szenario 1), um Modul-Logik daran
+   * zu verzweigen, ohne den generischen Domänentyp um Szenario-Vokabular zu erweitern.
+   */
   reference?: string;
   defect: boolean;
 }
@@ -84,6 +89,12 @@ export interface Truck {
   cargo?: CargoUnit;
   /** Simulationszeit (Minuten) der geplanten Abfahrt. */
   plannedDepartureAt?: number;
+  /**
+   * Optionale Kennung für Module, die diesem LKW unabhängig von geladener
+   * Fracht ein bestimmtes Abholziel/Verhalten zuweisen (z.B. eine Leerfahrt
+   * zum Abholen einer bereits abgestellten Ladeeinheit).
+   */
+  pickupTag?: string;
 }
 
 export interface SlotAssignment {

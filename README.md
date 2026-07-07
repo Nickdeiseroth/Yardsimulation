@@ -26,20 +26,29 @@ src/
     yardLayout.ts    Konkreter Yard-Aufbau (Zonen + Stellplätze), aus dem Lageplan abgeleitet
   simulation/
     engine.ts         Generische Tick-Engine, kennt keine Yard-Fachlogik
-    state.ts           Simulationszustand (Trucks, Ladeeinheiten, Belegung, Events, ...)
+    state.ts           Simulationszustand (Trucks, Ladeeinheiten, Belegung, Counters, SpawnQueue, Events, ...)
     rng.ts              Seedbarer Zufallsgenerator (reproduzierbare Läufe)
     util.ts             Hilfsfunktionen (freien/besetzten Slot finden)
     modules/           Die Bausteine ("Baukasten") - je ein Aspekt des Yard-Verhaltens
-      arrival.ts          Ankunft neuer LKW am Gate
-      assignment.ts       Zuweisung freier Laderampen
-      movement.ts         Fahrzeiten/Ankunft am Ziel
-      dwellDeparture.ts   Be-/Entladen, Rückladung, Abfahrt
-      shunting.ts         Rangierdienst (Ladeeinheit Rampe -> LEWB/SA)
-      cleanup.ts          Ausgefahrene LKW aus dem aktiven Bestand entfernen
+      arrival.ts          Ankunft neuer LKW am Gate (Poisson, Standardmodus)
+      assignment.ts       Zuweisung freier Laderampen (Standardmodus)
+      movement.ts         Fahrzeiten/Ankunft am Ziel (modusübergreifend wiederverwendet)
+      dwellDeparture.ts   Be-/Entladen, Rückladung, Abfahrt (Standardmodus)
+      shunting.ts         Rangierdienst (Ladeeinheit Rampe -> LEWB/SA, modusübergreifend wiederverwendet)
+      cleanup.ts          Ausgefahrene LKW aus dem aktiven Bestand entfernen (modusübergreifend wiederverwendet)
     modes/
       standardMode.ts     Komponiert die Standard-Modul-Kombination
+      scenario1/           Szenario 1: feste Stückzahlen je Brückenart, Physisch-/System-Zählung
+        types.ts             Verkehrstypen (sgut/nv/leer-ein/leer-aus), Konfig-Typ, Labels
+        setup.ts             onInit: platziert "Leere Brücke Ausgang" vorab, baut Ankunfts-Warteliste
+        scriptedArrival.ts   Löst verskriptete (statt zufällige) Ankünfte aus der Warteliste aus
+        assignment.ts        Routing je Verkehrstyp (Tor / direkt LEWB / Abholung bei LEWB)
+        dwellDeparture.ts    System+1 am Tor, Kopplung/Entkopplung, Rückfahrt
+        departureCounter.ts  Physisch-1, sobald eine abgeholte Ladeeinheit den Hof verlässt
+        index.ts             Komponiert die Szenario-1-Modul-Kombination
   store/
-    simulationStore.ts  Zustand-Store: hält Engine-Instanz, Play/Pause/Speed, Modus-Registry
+    simulationStore.ts  Zustand-Store: Engine-Instanz, Play/Pause/Speed, Modus-Registry inkl.
+                          Konfigurationsfeldern (Maske) und Zähler-Definitionen je Modus
   visualization/       React/SVG-Darstellung des Yards (liest nur aus Snapshot + yardLayout)
     roadNetwork.ts       Statische Straßen-Geometrie (Ringstraße + Gate) und Routenberechnung
     truckPosition.ts     Leitet aus Truck-Status/Movement die aktuelle Position+Blickrichtung ab
@@ -77,6 +86,22 @@ Ideen für weitere Bausteine/Modi (noch nicht implementiert):
 - **GateCapacityModule**: begrenzte Anzahl gleichzeitiger Einfahrten,
   Rückstau simulieren.
 
+### Konfigurationsmasken & Zähler je Modus
+
+`SimulationModeDefinition` (`store/simulationStore.ts`) kann optional
+`configFields` (Zahlenfelder, die als Maske im UI erscheinen -
+`visualization/ScenarioConfigPanel.tsx`) und `counterDefinitions` (benannte
+Kennzahlen, die als Kacheln angezeigt werden - `visualization/CounterPanel.tsx`)
+deklarieren. Beides ist generisch: ein neuer Modus muss nur die Felder/Zähler
+benennen, die UI baut sich daraus automatisch auf. `build(config)` erhält die
+aktuellen Maskenwerte und baut damit die Modul-Liste; "Szenario anwenden"
+bzw. "Reset" bauen die Module neu auf und rufen `onInit` erneut auf.
+
+Module lesen/schreiben Zähler direkt über `state.counters['schlüssel']` und
+verskriptete (statt zufällige) Ankünfte über `state.spawnQueue` (FIFO aus
+frei wählbaren Tags) - beides generische, wiederverwendbare Bausteine im
+State, keine Szenario-1-Spezialfelder.
+
 ### Datenmodell des Yards
 
 `domain/yardLayout.ts` ist die einzige Quelle für Zonen und Stellplätze.
@@ -112,6 +137,29 @@ gemeinsam als Grundlage nutzen.
 5. Fährt zum Gate und verlässt den Yard.
 6. Parallel: der Rangierdienst bringt an der Rampe zurückgelassene
    Ladeeinheiten in ihre Lagerzone (LEWB/SA) und gibt die Rampe frei.
+
+### Szenario 1: Brückenzähler
+
+Zweiter Modus, wählbar im Dropdown. Anders als der Standardbetrieb (zufällige,
+endlose Ankünfte) fährt Szenario 1 eine **feste, konfigurierbare Stückzahl**
+je Verkehrstyp ab und führt zwei Zähler, **Physisch** (physisch auf dem Hof
+vorhanden) und **System** (am Tor erfasst):
+
+| Verkehrstyp | Ablauf | Physisch | System |
+|---|---|---|---|
+| Sgut-Brücke | fährt rein -> wird an ein Tor gestellt -> danach an LEWB verbracht | +1 bei Einfahrt | +1 beim Erreichen des Tors |
+| NV-Brücke | identisch zu Sgut-Brücke | +1 bei Einfahrt | +1 beim Erreichen des Tors |
+| Leere Brücke Eingang | fährt rein -> direkt bei LEWB abgestellt, kein Tor | +1 bei Einfahrt | unverändert |
+| Leere Brücke Ausgang | steht bereits bei LEWB -> wird abgeholt -> fährt direkt ab | +1/System +1 sobald sie steht, **-1** bei Ausfahrt | +1 sobald sie steht, danach unverändert |
+
+Die Konfigurationsmaske (Anzahl je Brückenart) setzt die Stückzahl für einen
+Szenariolauf; "Leere Brücke Ausgang" wird bei Szenariostart sofort bei LEWB
+platziert (inkl. sofortiger Zählung), die übrigen Fahrzeuge treffen verskriptet
+im festen Takt am Gate ein (`scriptedArrival.ts`). Sgut/NV nutzen dieselbe
+Laderampen-Zone (`dock`) wie der Standardbetrieb und denselben
+Rangierdienst-Baustein (`shunting.ts`) für die Verbringung zur LEWB-Zone -
+nur Ankunft, Zuweisung und Verweildauer/Abfahrt sind eigene Bausteine, weil
+hier je Verkehrstyp unterschiedliche Ziel-Zonen und Zählregeln gelten.
 
 ### Fahrtwege
 

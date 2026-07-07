@@ -32,12 +32,14 @@ export class SimulationEngine {
     this.rng = createRng(this.seed);
     this.minutesPerTick = options.minutesPerTick ?? 5;
     this.state = createInitialState();
+    this.runInit();
   }
 
   reset(seed?: number): void {
     this.seed = seed ?? this.seed;
     this.rng = createRng(this.seed);
     this.state = createInitialState();
+    this.runInit();
   }
 
   setModules(modules: SimulationModule[]): void {
@@ -48,19 +50,27 @@ export class SimulationEngine {
     return this.modules;
   }
 
-  tick(): void {
-    const dt = this.minutesPerTick;
-    const ctx: TickContext = {
+  private buildContext(): TickContext {
+    return {
       state: this.state,
       layout: this.layout,
-      dt,
+      dt: this.minutesPerTick,
       rng: this.rng,
       log: (message) => {
         this.state.events.push({ time: this.state.time, message });
         if (this.state.events.length > MAX_EVENT_LOG) this.state.events.shift();
       },
     };
+  }
+
+  private runInit(): void {
+    const ctx = this.buildContext();
+    for (const mod of this.modules) mod.onInit?.(ctx);
+  }
+
+  tick(): void {
+    const ctx = this.buildContext();
     for (const mod of this.modules) mod.onTick(ctx);
-    this.state.time += dt;
+    this.state.time += this.minutesPerTick;
   }
 }

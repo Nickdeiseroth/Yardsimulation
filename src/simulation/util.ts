@@ -1,4 +1,4 @@
-import type { CargoUnitType, SlotOccupantType, Slot, YardLayout } from '../domain/types';
+import type { CargoUnit, CargoUnitType, SlotOccupantType, Slot, YardLayout } from '../domain/types';
 import type { SimulationState } from './state';
 
 export function findFreeSlot(
@@ -12,19 +12,25 @@ export function findFreeSlot(
   );
 }
 
-/** Findet einen Slot in `zoneId`, auf dem eine ungekoppelte, intakte Ladeeinheit passenden Typs steht. */
+/**
+ * Findet einen Slot in `zoneId`, auf dem eine ungekoppelte, intakte Ladeeinheit
+ * passenden Typs steht. Optionales `predicate` erlaubt zusätzliche Filter,
+ * z.B. auf `cargo.reference` (Szenario-spezifische Verkehrstyp-Kennung).
+ */
 export function findAvailableCargoSlot(
   layout: YardLayout,
   state: SimulationState,
   zoneId: string,
   cargoType: CargoUnitType,
+  predicate?: (cargo: CargoUnit) => boolean,
 ): Slot | undefined {
   return layout.slots.find((s) => {
     if (s.zoneId !== zoneId) return false;
     const occ = state.slotOccupancy[s.id];
     if (!occ?.cargoId || occ.truckId) return false;
     const cargo = state.cargoUnits[occ.cargoId];
-    return cargo?.type === cargoType && !cargo.defect;
+    if (!cargo || cargo.type !== cargoType || cargo.defect) return false;
+    return predicate ? predicate(cargo) : true;
   });
 }
 

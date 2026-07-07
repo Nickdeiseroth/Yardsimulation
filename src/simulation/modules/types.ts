@@ -25,5 +25,11 @@ export interface SimulationModule {
   id: string;
   label: string;
   description: string;
+  /**
+   * Optionale einmalige Initialisierung, wenn der Modus geladen/zurückgesetzt
+   * wird - z.B. um Startbestand zu platzieren oder eine Ankunfts-Warteliste
+   * aufzubauen (siehe modes/scenario1/setup.ts). Läuft vor dem ersten Tick.
+   */
+  onInit?(ctx: TickContext): void;
   onTick(ctx: TickContext): void;
 }
