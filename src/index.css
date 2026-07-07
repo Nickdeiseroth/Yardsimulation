@@ -17,9 +17,11 @@
   --hall-fill: #d9d9d4;
   --hall-stroke: #9a9a90;
   --hall-label: #8c8c82;
-  --road-fill: #b9b8ae;
-  --road-dash: #f4f4ee;
-  --gate-fill: #2f6fed;
+  /* Straßenfarben sind bewusst fest (nicht theme-abhängig): Asphalt +
+     gelbe Mittellinie sind in beiden Themes gut erkennbar. */
+  --road-fill: #565b63;
+  --road-dash: #f4c94f;
+  --gate-fill: #e8483a;
   --gate-label: #333;
 
   --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -52,9 +54,7 @@
     --hall-fill: #2e323c;
     --hall-stroke: #474c58;
     --hall-label: #7e8492;
-    --road-fill: #4a4f5b;
-    --road-dash: #1a1c22;
-    --gate-fill: #6fa1ff;
+    /* --road-fill / --road-dash / --gate-fill bleiben fest (siehe :root) */
     --gate-label: #d9dde4;
   }
 }

@@ -8,8 +8,9 @@ export interface Point {
 /**
  * Vereinfachtes Straßennetz: eine rechteckige Ringstraße um die Halle (West-,
  * Nord-, Ost-, Südkante, jeweils in der Gasse zwischen den Stellplatzblöcken),
- * plus ein Gate-Stichweg unten links. Jede Zone bindet über einen kurzen
- * Stich an die nächstliegende Kante an (siehe `edgeAndPointFor`).
+ * plus ein Gate-Stichweg, der von der Südkante gerade nach unten in die freie
+ * Fläche zwischen "Abstellfläche Sattel" und "PP" führt. Jede Zone bindet über
+ * einen kurzen Stich an die nächstliegende Kante an (siehe `edgeAndPointFor`).
  *
  * Das ist bewusst kein echtes Pathfinding, sondern eine feste, an den
  * Lageplan angelehnte Geometrie - ausreichend, um LKW-Fahrten nachvollziehbar
@@ -26,19 +27,25 @@ const NW: Point = { x: WEST_X, y: NORTH_Y };
 const NE: Point = { x: EAST_X, y: NORTH_Y };
 const SE: Point = { x: EAST_X, y: SOUTH_Y };
 
-/** Eckpunkte im Uhrzeigersinn, beginnend unten links (Anschlusspunkt des Gates). */
-const corners: Point[] = [SW, NW, NE, SE];
-const edgeLengths = corners.map((c, i) => dist(c, corners[(i + 1) % 4]));
-const cumulative = [0, edgeLengths[0], edgeLengths[0] + edgeLengths[1], edgeLengths[0] + edgeLengths[1] + edgeLengths[2]];
-const totalPerimeter = cumulative[3] + edgeLengths[3];
+/** Anschlusspunkt des Gate-Stichs auf der Südkante (liegt zwischen SW und SE). */
+const GATE_JUNCTION: Point = { x: 745, y: SOUTH_Y };
+export const GATE: Point = { x: 745, y: 1080 };
+const GATE_STUB: Point[] = [GATE, GATE_JUNCTION];
 
-// Der Gate-Stich macht einen Knick um den PPRD/DEF/SA-Block herum, statt
-// gerade durch dessen Stellplätze zu verlaufen.
-export const GATE: Point = { x: 20, y: 1010 };
-const GATE_STUB: Point[] = [GATE, { x: 20, y: 825 }, { x: WEST_X, y: 825 }, SW];
+/**
+ * Eckpunkte im Uhrzeigersinn, beginnend am Gate-Anschlusspunkt: von dort erst
+ * zur SW-Ecke (kürzeres Reststück der Südkante), dann rundherum bis zurück
+ * zur SE-Ecke (das andere Reststück der Südkante schließt den Ring wieder am
+ * Gate-Anschlusspunkt).
+ */
+const corners: Point[] = [GATE_JUNCTION, SW, NW, NE, SE];
+const edgeCount = corners.length;
+const edgeLengths = corners.map((c, i) => dist(c, corners[(i + 1) % edgeCount]));
+const cumulative = edgeLengths.reduce<number[]>((acc, len, i) => [...acc, (acc[i] ?? 0) + len], [0]).slice(0, edgeCount);
+const totalPerimeter = edgeLengths.reduce((a, b) => a + b, 0);
 
 /** Statische Streckenführung, für die Hintergrund-Darstellung der Straßen. */
-export const roadNetworkPolyline: Point[] = [...GATE_STUB.slice(0, -1), ...corners, SW];
+export const roadNetworkPolyline: Point[] = [...GATE_STUB, ...corners.slice(1), GATE_JUNCTION];
 
 function dist(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
@@ -55,20 +62,26 @@ function edgeAndPointFor(slot: Slot): { edgeIndex: number; point: Point } {
   switch (slot.zoneId) {
     case 'lewb':
     case 'ang':
-      return { edgeIndex: 1, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
+      return { edgeIndex: 2, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
     case 'dock':
-      if (slot.x > 950) return { edgeIndex: 2, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
-      if (slot.y < 450) return { edgeIndex: 1, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
-      return { edgeIndex: 3, point: { x: clamp(cx, SW.x, SE.x), y: SOUTH_Y } };
+      if (slot.x > 950) return { edgeIndex: 3, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
+      if (slot.y < 450) return { edgeIndex: 2, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
+      return southEdgePoint(cx);
     case 'umw':
-      return { edgeIndex: 0, point: { x: WEST_X, y: clamp(cy, NW.y, SW.y) } };
+      return { edgeIndex: 1, point: { x: WEST_X, y: clamp(cy, NW.y, SW.y) } };
     case 'umo':
     case 'wkst':
-      return { edgeIndex: 2, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
+      return { edgeIndex: 3, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
     default:
       // pprd, def, sa, pp und alles Weitere: Anbindung über die Südkante.
-      return { edgeIndex: 3, point: { x: clamp(cx, SW.x, SE.x), y: SOUTH_Y } };
+      return southEdgePoint(cx);
   }
+}
+
+/** Südkante ist am Gate-Anschlusspunkt in zwei Teilstücke gesplittet (edge0: Richtung SW, edge4: Richtung SE). */
+function southEdgePoint(cx: number): { edgeIndex: number; point: Point } {
+  const x = clamp(cx, SW.x, SE.x);
+  return x <= GATE_JUNCTION.x ? { edgeIndex: 0, point: { x, y: SOUTH_Y } } : { edgeIndex: edgeCount - 1, point: { x, y: SOUTH_Y } };
 }
 
 function buildLoopPath(edgeIndex: number, point: Point): Point[] {
@@ -79,7 +92,7 @@ function buildLoopPath(edgeIndex: number, point: Point): Point[] {
     return [...corners.slice(0, edgeIndex + 1), point];
   }
   const pts = [corners[0]];
-  for (let k = 3; k >= edgeIndex + 1; k--) pts.push(corners[k]);
+  for (let k = edgeCount - 1; k >= edgeIndex + 1; k--) pts.push(corners[k]);
   pts.push(point);
   return pts;
 }
