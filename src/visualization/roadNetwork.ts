@@ -105,6 +105,88 @@ export function buildRouteToSlot(slot: Slot): Point[] {
   return [...GATE_STUB, ...loopPath.slice(1), slotCenter];
 }
 
+const LANE_OFFSET = 3.2;
+const CORNER_RADIUS = 16;
+
+function normalize(v: Point): Point {
+  const len = Math.hypot(v.x, v.y) || 1;
+  return { x: v.x / len, y: v.y / len };
+}
+
+/** 90°-Rotation eines Richtungsvektors - "rechts der Fahrtrichtung". */
+function rightOf(dir: Point): Point {
+  return { x: -dir.y, y: dir.x };
+}
+
+function lerpTowards(from: Point, to: Point, distance: number): Point {
+  const t = distance / (dist(from, to) || 1);
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
+function quadraticBezier(p0: Point, p1: Point, p2: Point, t: number): Point {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x,
+    y: mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y,
+  };
+}
+
+/**
+ * Verschiebt eine Route seitlich um `distance` nach rechts der jeweiligen
+ * lokalen Fahrtrichtung - simuliert eine eigene Fahrspur, damit Hin- und
+ * Rückfahrt (bzw. mehrere gleichzeitige LKW auf derselben Strecke) nicht
+ * exakt deckungsgleich übereinanderliegen.
+ */
+export function offsetRoute(points: Point[], distance: number): Point[] {
+  if (points.length < 2 || distance === 0) return points;
+  return points.map((p, i) => {
+    const a = points[Math.max(0, i - 1)];
+    const b = points[Math.min(points.length - 1, i + 1)];
+    const perp = rightOf(normalize({ x: b.x - a.x, y: b.y - a.y }));
+    return { x: p.x + perp.x * distance, y: p.y + perp.y * distance };
+  });
+}
+
+/**
+ * Ersetzt scharfe Knicke einer Route durch kleine, abgetastete Kurven
+ * (quadratische Bézier), damit LKW nicht auf der Stelle abbiegen, sondern
+ * die Ecke "ausfahren" - realistischer als der reine Streckenzug.
+ */
+export function roundedRoute(points: Point[], radius = CORNER_RADIUS, segments = 6): Point[] {
+  if (points.length < 3) return points;
+  const result: Point[] = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    const r = Math.min(radius, dist(curr, prev) / 2, dist(curr, next) / 2);
+    if (r < 0.5) {
+      result.push(curr);
+      continue;
+    }
+    const entry = lerpTowards(curr, prev, r);
+    const exit = lerpTowards(curr, next, r);
+    result.push(entry);
+    for (let s = 1; s <= segments; s++) {
+      result.push(quadraticBezier(entry, curr, exit, s / (segments + 1)));
+    }
+    result.push(exit);
+  }
+  result.push(points[points.length - 1]);
+  return result;
+}
+
+/** Kombiniert Fahrspur-Versatz + Kurvenglättung - der finale "Look" einer gefahrenen Strecke. */
+export function preparePath(route: Point[]): Point[] {
+  return roundedRoute(offsetRoute(route, LANE_OFFSET), CORNER_RADIUS);
+}
+
+/** Sanftes Anfahren/Abbremsen statt konstanter Geschwindigkeit. */
+export function easeInOutCubic(t: number): number {
+  const c = clamp(t, 0, 1);
+  return c < 0.5 ? 4 * c * c * c : 1 - (-2 * c + 2) ** 3 / 2;
+}
+
 export interface RoutePosition {
   point: Point;
   /** Fahrtrichtung in Grad (0 = nach rechts/Osten), für die Rotation des LKW-Symbols. */

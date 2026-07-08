@@ -3,7 +3,7 @@ import type { SimulationState } from '../simulation/state';
 import { SlotRect } from './SlotRect';
 import { TruckMarker } from './TruckMarker';
 import { getTruckMarkerPosition } from './truckPosition';
-import { GATE, roadNetworkPolyline } from './roadNetwork';
+import { GATE, roadNetworkPolyline, roundedRoute } from './roadNetwork';
 import { zoneBackground } from './colors';
 
 const ZONE_PADDING = 8;
@@ -22,7 +22,9 @@ function computeZoneBounds() {
 }
 
 const zoneBounds = computeZoneBounds();
-const roadPathD = roadNetworkPolyline.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+const roadPathD = roundedRoute(roadNetworkPolyline)
+  .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+  .join(' ');
 
 interface ZoneLabel {
   zoneId: string;

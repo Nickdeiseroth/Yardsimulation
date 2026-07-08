@@ -179,6 +179,21 @@ nur die Restzeit, sondern auch die Gesamtdauer (`state.movements[truckId] =
 `TruckMarker`-Komponente animiert das per CSS-Transition zwischen zwei
 Simulations-Ticks weich statt sprunghaft.
 
+Für einen realistischeren Look durchläuft jede Route vor der Interpolation
+`roadNetwork.ts` → `preparePath()`:
+
+- **Fahrspur-Versatz** (`offsetRoute`): jede Route wird um wenige Pixel nach
+  rechts der jeweiligen lokalen Fahrtrichtung verschoben - Hin- und Rückfahrt
+  liegen dadurch nicht exakt deckungsgleich übereinander, wie zwei
+  Fahrspuren einer echten Straße.
+- **Kurvenglättung** (`roundedRoute`): scharfe 90°-Knicke an den
+  Ring-/Zufahrtsecken werden durch kleine, abgetastete Bézierkurven ersetzt,
+  radius-begrenzt auf die halbe angrenzende Segmentlänge (kein Verzerren
+  kurzer Stichwege in die Stellplätze).
+- **Sanftes Anfahren/Abbremsen** (`easeInOutCubic`): der Fortschritt entlang
+  der Route ist nicht linear zur Zeit, sondern beschleunigt/bremst am
+  Fahrtanfang/-ende ab statt mit konstanter Geschwindigkeit zu fahren.
+
 Das ist bewusst kein echtes Pathfinding (keine Kollisionsvermeidung,
 kein Gegenverkehr) - reicht aber, um Bewegungen nachvollziehbar entlang
 plausibler Wege statt geradlinig durch die Halle zu zeigen. Ein künftiges

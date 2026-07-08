@@ -1,7 +1,7 @@
 import type { Truck } from '../domain/types';
 import { slotById } from '../domain/yardLayout';
 import { GATE_EXIT, type SimulationState } from '../simulation/state';
-import { buildRouteToSlot, GATE, pointAtProgress, type RoutePosition } from './roadNetwork';
+import { buildRouteToSlot, easeInOutCubic, GATE, pointAtProgress, preparePath, type RoutePosition } from './roadNetwork';
 
 /** Ermittelt Bildschirmposition + Blickrichtung eines LKW für den aktuellen Snapshot. */
 export function getTruckMarkerPosition(truck: Truck, state: SimulationState): RoutePosition {
@@ -12,14 +12,15 @@ export function getTruckMarkerPosition(truck: Truck, state: SimulationState): Ro
 
   if (truck.status === 'moving') {
     const movement = state.movements[truck.id];
-    const progress = movement && movement.total > 0 ? 1 - movement.remaining / movement.total : 0;
+    const linearProgress = movement && movement.total > 0 ? 1 - movement.remaining / movement.total : 0;
+    const progress = easeInOutCubic(linearProgress);
 
     if (truck.targetSlotId && truck.targetSlotId !== GATE_EXIT) {
       const slot = slotById.get(truck.targetSlotId);
-      if (slot) return pointAtProgress(buildRouteToSlot(slot), progress);
+      if (slot) return pointAtProgress(preparePath(buildRouteToSlot(slot)), progress);
     } else if (truck.currentSlotId) {
       const slot = slotById.get(truck.currentSlotId);
-      if (slot) return pointAtProgress([...buildRouteToSlot(slot)].reverse(), progress);
+      if (slot) return pointAtProgress(preparePath([...buildRouteToSlot(slot)].reverse()), progress);
     }
   }
 
