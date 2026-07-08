@@ -48,14 +48,25 @@ src/
         dwellDeparture.ts    System+1 am Tor, Kopplung/Entkopplung, Rückfahrt
         departureCounter.ts  Physisch-1, sobald eine abgeholte Ladeeinheit den Hof verlässt
         index.ts             Komponiert die Szenario-1-Modul-Kombination
+      scenario2/            Szenario 2: 24-Stunden-Betrieb, sechs uhrzeitgebundene Verkehrsarten + Hofbestand
+        types.ts              Verkehrsarten, Zeitfenster (inkl. Mitternachts-Überlauf), Tor-Bereiche, Konfig-Typ
+        setup.ts               onInit: platziert Hofbestand, würfelt/übernimmt Stückzahlen, plant alle 24h-Ankünfte
+        scheduledArrival.ts     Löst uhrzeitgenau geplante Ankünfte aus `state.scheduledSpawns` aus
+        assignment.ts           Routing je Verkehrsart (Tor-Nummernbereich / LEWB / Abholung bei LEWB)
+        dwellDeparture.ts       Be-/Entladen, mehrstufige Fahrten (Gate -> LEWB -> Tor -> Gate) für Ausgangsverkehr
+        departureCounter.ts     Physisch-1 bei jeder Ausfahrt, System-1 nur für Sammelgut/Nahverkehr Ausgang
+        index.ts                Komponiert die Szenario-2-Modul-Kombination
   store/
     simulationStore.ts  Zustand-Store: Engine-Instanz, Play/Pause/Speed, Modus-Registry inkl.
-                          Konfigurationsfeldern (Maske) und Zähler-Definitionen je Modus
+                          Konfigurationsfeldern (Maske, auch Auswahlfelder) und Zähler-Definitionen je Modus
   visualization/       React/SVG-Darstellung des Yards (liest nur aus Snapshot + yardLayout)
     truckPosition.ts     Leitet aus Truck-Status/Movement/Sub-Tick-Fortschritt die aktuelle Position+Blickrichtung ab
     TruckLayer.tsx        Rendert die LKW-Symbole, abonniert subTickProgress separat (60fps, siehe unten)
     TruckMarker.tsx        LKW-Symbol (Kabine + Trailer, Farbe je nach Ladung)
     YardMap.tsx            Setzt Zonen, Halle, Straßen, Slots und TruckLayer zum SVG zusammen
+    ClockPanel.tsx         Große Uhrzeitanzeige + 24h-Fortschrittsbalken (Modi mit `showClock`)
+    EvaluationPanel.tsx    Eingänge/Ausgänge je Verkehrsart mit Uhrzeitspanne (Modi mit `showEvaluation`)
+    cargoLabel.ts          Übersetzt `cargo.reference` (modusübergreifend) in ein lesbares Label für Tooltips
 ```
 
 ### Baukasten-Prinzip
@@ -162,6 +173,56 @@ Laderampen-Zone (`dock`) wie der Standardbetrieb und denselben
 Rangierdienst-Baustein (`shunting.ts`) für die Verbringung zur LEWB-Zone -
 nur Ankunft, Zuweisung und Verweildauer/Abfahrt sind eigene Bausteine, weil
 hier je Verkehrstyp unterschiedliche Ziel-Zonen und Zählregeln gelten.
+
+### Szenario 2: 24-Stunden-Betrieb
+
+Dritter Modus. Anders als Szenario 1 (feste Reihenfolge, kein Zeitbezug) sind
+hier alle sechs Verkehrsarten an feste **Uhrzeitfenster** und **Tor-Nummernbereiche**
+gebunden und laufen über einen simulierten 24-Stunden-Tag (Minute 0 = 00:00,
+Minute 1440 = 24:00 - danach werden keine neuen Fahrten mehr geplant, laufende
+werden aber zu Ende gefahren). Zusätzlich zu Physisch/System (wie Szenario 1,
+aber jetzt **einheitlich**: jede Einfahrt +1, jede Ausfahrt -1, unabhängig von
+der Verkehrsart) lässt sich ein **Hofbestand** hinterlegen - eine Anzahl leerer
+Wechselbrücken, die zu Simulationsbeginn bereits bei LEWB stehen und sofort
+im System gebucht sind.
+
+| Verkehrsart | Zeitfenster | Tor | Ablauf | System |
+|---|---|---|---|---|
+| Sammelgut Eingang | 23:00–05:00 | 54–95 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 am Tor |
+| Sammelgut Ausgang | 18:00–23:00 | 54–95 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei Ausfahrt |
+| Nahverkehr Ausgang | 06:00–08:00 | 01–41 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei Ausfahrt |
+| Nahverkehr Eingang | 11:00–18:00 | 01–41 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 am Tor |
+| Leerbrücke Eingang | Eingangszeiten (Vereinigung der beiden Eingangsfenster) | – | fährt rein -> direkt an LEWB, kein Tor | unverändert |
+| Leerbrücke Ausgang | Ausgangszeiten (Vereinigung der beiden Ausgangsfenster) | – | holt Leerbrücke von LEWB -> fährt direkt raus, kein Tor | unverändert |
+
+**Konfigurationsmaske:** Erzeugungsart (Zufallsmodus - Stückzahl je Art wird
+automatisch im Bereich 3–12 gewürfelt, per `disabledWhen` sind die manuellen
+Felder dann ausgegraut - oder Manuell - feste Stückzahl je Art wie in
+Szenario 1), Hofbestand, sowie sechs Stückzahl-Felder (eins je Verkehrsart).
+Ankunfts-/Abfahrtszeitpunkte werden bei Szenariostart einmalig zufällig
+innerhalb ihres Fensters gewürfelt und chronologisch in
+`state.scheduledSpawns` abgelegt; ein Ankunfts-Baustein löst sie aus, sobald
+die Simulationszeit den geplanten Zeitpunkt erreicht (statt wie in Szenario 1
+gleichmäßig getaktet).
+
+**Mehrstufige Fahrten:** Sammelgut/Nahverkehr Ausgang fahren nicht direkt zu
+ihrem Ziel, sondern erst zum Gate -> LEWB (Leerbrücke koppeln, sofern gerade
+eine passende Rampe frei ist - sonst wird bei LEWB gewartet) -> Tor (Beladen,
+Verweildauer) -> Gate (Ausfahrt, System-Buchung). Dafür berechnet
+`domain/roadNetwork.ts` → `buildRouteBetweenSlots()` eine Route zwischen zwei
+Slots ohne Umweg über das Gate - eine Verallgemeinerung von
+`buildRouteToSlot`/`buildRouteFromSlot`, die weiterhin **immer in
+Fahrtrichtung** bleibt (nötigenfalls einmal um den ganzen Ring, falls das
+Ziel "hinter" dem Start auf derselben Kante liegt).
+
+**Auswertung:** `state.records` sammelt chronologisch jede Einfahrt/Ausfahrt/
+Hofbestand-Buchung mit Verkehrsart-Tag und Uhrzeit - unabhängig vom für
+Menschen lesbaren Ereignisprotokoll (`state.events`). Das `EvaluationPanel`
+aggregiert daraus Eingänge/Ausgänge je Verkehrsart samt beobachtetem
+Zeitraum. `cargo.reference` trägt für jede Ladeeinheit dauerhaft ihre
+Herkunftsart (z.B. "sge", bleibt auch nach Umkopplung z.B. bei einer
+späteren Abholung erhalten) - `visualization/cargoLabel.ts` übersetzt das
+modusübergreifend in ein lesbares Label für Tooltips.
 
 ### Fahrtwege
 

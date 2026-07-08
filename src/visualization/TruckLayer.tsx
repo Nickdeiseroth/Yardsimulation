@@ -1,6 +1,7 @@
 import { useSimulationStore } from '../store/simulationStore';
 import { TruckMarker } from './TruckMarker';
 import { getTruckMarkerPosition } from './truckPosition';
+import { cargoReferenceLabel } from './cargoLabel';
 
 /**
  * Eigene Komponente für die LKW-Symbole, damit die framegenaue
@@ -21,6 +22,9 @@ export function TruckLayer() {
     <>
       {activeTrucks.map((truck) => {
         const { point, heading } = getTruckMarkerPosition(truck, movements, subTickProgress, minutesPerTick);
+        const cargoLabel = truck.cargo
+          ? `${truck.cargo.type} ${truck.cargo.id}${cargoReferenceLabel(truck.cargo.reference) ? ` – ${cargoReferenceLabel(truck.cargo.reference)}` : ''}`
+          : 'solo';
         return (
           <TruckMarker
             key={truck.id}
@@ -29,7 +33,7 @@ export function TruckLayer() {
             heading={heading}
             cargoType={truck.cargo?.type}
             moving={truck.status === 'moving'}
-            label={`${truck.id} (${truck.licensePlate})${truck.cargo ? ` – ${truck.cargo.type} ${truck.cargo.id}` : ' – solo'}`}
+            label={`${truck.id} (${truck.licensePlate}) – ${cargoLabel}`}
           />
         );
       })}

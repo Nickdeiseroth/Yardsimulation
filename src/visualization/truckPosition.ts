@@ -2,7 +2,16 @@ import type { Truck } from '../domain/types';
 import { slotById } from '../domain/yardLayout';
 import type { SimulationState } from '../simulation/state';
 import { GATE_EXIT } from '../simulation/state';
-import { buildRouteFromSlot, buildRouteToSlot, easeInOutCubic, GATE, pointAtProgress, preparePath, type RoutePosition } from '../domain/roadNetwork';
+import {
+  buildRouteBetweenSlots,
+  buildRouteFromSlot,
+  buildRouteToSlot,
+  easeInOutCubic,
+  GATE,
+  pointAtProgress,
+  preparePath,
+  type RoutePosition,
+} from '../domain/roadNetwork';
 
 /**
  * Ermittelt Bildschirmposition + Blickrichtung eines LKW.
@@ -33,7 +42,12 @@ export function getTruckMarkerPosition(
     }
     const progress = easeInOutCubic(linearProgress);
 
-    if (truck.targetSlotId && truck.targetSlotId !== GATE_EXIT) {
+    if (truck.targetSlotId && truck.targetSlotId !== GATE_EXIT && truck.currentSlotId) {
+      // Mehrstufige Fahrt innerhalb des Hofs (z.B. LEWB -> Tor), nicht vom Gate aus.
+      const from = slotById.get(truck.currentSlotId);
+      const to = slotById.get(truck.targetSlotId);
+      if (from && to) return pointAtProgress(preparePath(buildRouteBetweenSlots(from, to)), progress);
+    } else if (truck.targetSlotId && truck.targetSlotId !== GATE_EXIT) {
       const slot = slotById.get(truck.targetSlotId);
       if (slot) return pointAtProgress(preparePath(buildRouteToSlot(slot)), progress);
     } else if (truck.currentSlotId) {

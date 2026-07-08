@@ -116,6 +116,34 @@ export function buildRouteFromSlot(slot: Slot): Point[] {
   return [slotCenter, ...loopPath, GATE];
 }
 
+/**
+ * Route zwischen zwei Slots (z.B. LEWB -> Tor, für Ladefahrten die erst eine
+ * Ladeeinheit abholen und dann zu einer Rampe weiterfahren), ohne über das
+ * Gate zu laufen. Fährt konsequent in Fahrtrichtung weiter, genau wie
+ * `buildRouteFromSlot`/`buildRouteToSlot` - liegt `toSlot` "hinter" `fromSlot"
+ * auf derselben Kante, geht die Fahrt entsprechend einmal um den ganzen Ring.
+ */
+export function buildRouteBetweenSlots(fromSlot: Slot, toSlot: Slot): Point[] {
+  const from = edgeAndPointFor(fromSlot);
+  const to = edgeAndPointFor(toSlot);
+  const fromCenter: Point = { x: fromSlot.x + fromSlot.width / 2, y: fromSlot.y + fromSlot.height / 2 };
+  const toCenter: Point = { x: toSlot.x + toSlot.width / 2, y: toSlot.y + toSlot.height / 2 };
+
+  if (from.edgeIndex === to.edgeIndex && dist(corners[from.edgeIndex], to.point) >= dist(corners[from.edgeIndex], from.point)) {
+    // Gleiche Kante, Ziel liegt in Fahrtrichtung weiter vorne - direkter Weg ohne Ecken.
+    return [fromCenter, from.point, to.point, toCenter];
+  }
+
+  const waypoints: Point[] = [fromCenter, from.point];
+  let idx = (from.edgeIndex + 1) % edgeCount;
+  while (idx !== to.edgeIndex) {
+    waypoints.push(corners[idx]);
+    idx = (idx + 1) % edgeCount;
+  }
+  waypoints.push(to.point, toCenter);
+  return waypoints;
+}
+
 /** Gesamtlänge einer Route (Summe der Segmentlängen), in Karten-Einheiten. */
 export function routeLength(route: Point[]): number {
   let total = 0;

@@ -1,6 +1,7 @@
 import type { CargoUnit, Slot, Truck } from '../domain/types';
 import type { SlotOccupant } from '../simulation/state';
 import { cargoColor, defectColor, emptySlotColor, slotStrokeColor, truckOnlyColor } from './colors';
+import { cargoReferenceLabel } from './cargoLabel';
 
 interface SlotRectProps {
   slot: Slot;
@@ -24,7 +25,10 @@ export function SlotRect({ slot, occupant, truck, cargo }: SlotRectProps) {
 
   const titleParts = [`Slot ${slot.id}${slot.altId ? ` / ${slot.altId}` : ''}`];
   if (truck) titleParts.push(`LKW ${truck.id} (${truck.licensePlate})`);
-  if (cargo) titleParts.push(`${cargo.type}${cargo.defect ? ' [defekt]' : ''} ${cargo.id}`);
+  if (cargo) {
+    const label = cargoReferenceLabel(cargo.reference);
+    titleParts.push(`${cargo.type}${cargo.defect ? ' [defekt]' : ''} ${cargo.id}${label ? ` – ${label}` : ''}`);
+  }
 
   return (
     <g transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}>

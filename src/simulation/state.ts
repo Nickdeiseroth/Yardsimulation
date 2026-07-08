@@ -38,10 +38,24 @@ export interface SimulationState {
   counters: Record<string, number>;
   /**
    * Generische FIFO-Warteliste für Module mit fest verskripteten (statt
-   * zufälligen) Ankünften: Einträge sind frei wählbare Tags, die ein
-   * Ankunfts-Modul nach und nach abarbeitet (siehe Szenario 1).
+   * zufälligen) Ankünften, ausgelöst in festem Takt: Einträge sind frei
+   * wählbare Tags, die ein Ankunfts-Modul nach und nach abarbeitet
+   * (siehe Szenario 1).
    */
   spawnQueue: string[];
+  /**
+   * Generische, nach Zeit sortierte Ankunftsplanung für Module mit
+   * uhrzeitgebundenen (statt gleichmäßig getakteten) Ankünften: jeder Eintrag
+   * feuert, sobald `state.time` seine geplante Zeit erreicht (siehe Szenario 2).
+   */
+  scheduledSpawns: { time: number; tag: string }[];
+  /**
+   * Generisches, chronologisches Auswertungs-Log für Module, die am Ende
+   * eine Statistik zeigen wollen (z.B. Eingänge/Ausgänge je Verkehrsart und
+   * Uhrzeit in Szenario 2) - unabhängig vom Ereignisprotokoll (`events`),
+   * das für Menschen lesbare Freitext-Meldungen enthält statt strukturierter Daten.
+   */
+  records: { tag: string; kind: string; time: number }[];
   events: SimulationEvent[];
   nextTruckSeq: number;
   nextCargoSeq: number;
@@ -58,6 +72,8 @@ export function createInitialState(): SimulationState {
     dwellTimers: {},
     counters: {},
     spawnQueue: [],
+    scheduledSpawns: [],
+    records: [],
     events: [],
     nextTruckSeq: 1,
     nextCargoSeq: 1,

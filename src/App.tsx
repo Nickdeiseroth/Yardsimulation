@@ -7,6 +7,8 @@ import { EventLog } from './visualization/EventLog';
 import { StatsPanel } from './visualization/StatsPanel';
 import { ScenarioConfigPanel } from './visualization/ScenarioConfigPanel';
 import { CounterPanel } from './visualization/CounterPanel';
+import { ClockPanel } from './visualization/ClockPanel';
+import { EvaluationPanel } from './visualization/EvaluationPanel';
 
 function App() {
   const snapshot = useSimulationStore((s) => s.snapshot);
@@ -31,8 +33,10 @@ function App() {
           <div className="panel">
             <ControlPanel />
           </div>
+          <ClockPanel />
           <ScenarioConfigPanel />
           <CounterPanel />
+          <EvaluationPanel />
           <div className="panel">
             <StatsPanel />
           </div>

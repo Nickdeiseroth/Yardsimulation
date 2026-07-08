@@ -13,6 +13,28 @@ export function findFreeSlot(
 }
 
 /**
+ * Wie `findFreeSlot`, aber nur unter Slots, deren numerische ID im Bereich
+ * `[minId, maxId]` liegt - z.B. um LKW gezielt an ein Tor aus einem
+ * bestimmten Nummernbereich zu schicken (siehe Szenario 2: Sammelgut-Tore
+ * 54-95 vs. Nahverkehrs-Tore 01-41). Slots mit nicht-numerischer ID werden
+ * ignoriert.
+ */
+export function findFreeSlotInIdRange(
+  layout: YardLayout,
+  state: SimulationState,
+  zoneId: string,
+  occupantType: SlotOccupantType,
+  minId: number,
+  maxId: number,
+): Slot | undefined {
+  return layout.slots.find((s) => {
+    if (s.zoneId !== zoneId || !s.accepts.includes(occupantType) || state.slotOccupancy[s.id]) return false;
+    const numericId = Number(s.id);
+    return Number.isFinite(numericId) && numericId >= minId && numericId <= maxId;
+  });
+}
+
+/**
  * Findet einen Slot in `zoneId`, auf dem eine ungekoppelte, intakte Ladeeinheit
  * passenden Typs steht. Optionales `predicate` erlaubt zusätzliche Filter,
  * z.B. auf `cargo.reference` (Szenario-spezifische Verkehrstyp-Kennung).
