@@ -198,12 +198,19 @@ gekoppelt hat, nicht daran, ob überhaupt ein LKW kommt oder geht
 
 | Verkehrsart | Zeitfenster | Tor | Ablauf | System |
 |---|---|---|---|---|
-| Sammelgut Eingang | 23:00–05:00 | 54–95 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 am Tor |
-| Sammelgut Ausgang | 18:00–23:00 | 54–95 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei Ausfahrt |
-| Nahverkehr Ausgang | 06:00–08:00 | 01–41 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei Ausfahrt |
-| Nahverkehr Eingang | 11:00–18:00 | 01–41 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 am Tor |
+| Sammelgut Eingang | 23:00–05:00 | 54–95 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 **beim Erreichen** des Tors |
+| Sammelgut Ausgang | 18:00–23:00 | 54–95 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei tatsächlicher Ausfahrt |
+| Nahverkehr Ausgang | 06:00–08:00 | 01–41 | holt Leerbrücke von LEWB -> belädt am Tor -> fährt raus | -1 bei tatsächlicher Ausfahrt |
+| Nahverkehr Eingang | 11:00–18:00 | 01–41 | fährt rein -> entlädt am Tor -> Brücke an LEWB | +1 **beim Erreichen** des Tors |
 | Leerbrücke Eingang | Eingangszeiten (Vereinigung der beiden Eingangsfenster) | – | fährt rein -> direkt an LEWB, kein Tor | unverändert |
 | Leerbrücke Ausgang | Ausgangszeiten (Vereinigung der beiden Ausgangsfenster) | – | holt Leerbrücke von LEWB -> fährt direkt raus, kein Tor | unverändert |
+
+**Wichtig zur Timing-Reihenfolge am Tor (Sammelgut/Nahverkehr Eingang):** die
+System-Buchung erfolgt **sofort beim Erreichen** des Tors, nicht erst nach
+Ablauf der Entladezeit - "sobald die Brücke am Tor ist, wird sie gescannt",
+nicht erst wenn sie fertig entladen ist. Physisch (bei Einfahrt) und System
+(kurz danach bei Ankunft am Tor) laufen dadurch eng parallel durch, statt
+durch die ~20-minütige Entladezeit auseinanderzufallen.
 
 **Konfigurationsmaske:** Erzeugungsart (Zufallsmodus - Stückzahl je Art wird
 automatisch im Bereich 3–12 gewürfelt, per `disabledWhen` sind die manuellen
