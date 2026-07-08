@@ -24,6 +24,8 @@ src/
   domain/           Fachliches Datenmodell (Zone, Slot, Truck, CargoUnit)
     types.ts
     yardLayout.ts    Konkreter Yard-Aufbau (Zonen + Stellplätze), aus dem Lageplan abgeleitet
+    roadNetwork.ts   Straßen-Geometrie (Einbahn-Ringstraße + Gate), Routen- und Fahrzeitberechnung -
+                       bewusst im Domänenmodell, damit Simulation UND Visualisierung dieselbe Geometrie nutzen
   simulation/
     engine.ts         Generische Tick-Engine, kennt keine Yard-Fachlogik
     state.ts           Simulationszustand (Trucks, Ladeeinheiten, Belegung, Counters, SpawnQueue, Events, ...)
@@ -50,10 +52,10 @@ src/
     simulationStore.ts  Zustand-Store: Engine-Instanz, Play/Pause/Speed, Modus-Registry inkl.
                           Konfigurationsfeldern (Maske) und Zähler-Definitionen je Modus
   visualization/       React/SVG-Darstellung des Yards (liest nur aus Snapshot + yardLayout)
-    roadNetwork.ts       Statische Straßen-Geometrie (Ringstraße + Gate) und Routenberechnung
-    truckPosition.ts     Leitet aus Truck-Status/Movement die aktuelle Position+Blickrichtung ab
-    TruckMarker.tsx       LKW-Symbol (Position/Rotation/Farbe je nach Ladung)
-    YardMap.tsx            Setzt Zonen, Halle, Straßen, Slots und LKW-Marker zum SVG zusammen
+    truckPosition.ts     Leitet aus Truck-Status/Movement/Sub-Tick-Fortschritt die aktuelle Position+Blickrichtung ab
+    TruckLayer.tsx        Rendert die LKW-Symbole, abonniert subTickProgress separat (60fps, siehe unten)
+    TruckMarker.tsx        LKW-Symbol (Kabine + Trailer, Farbe je nach Ladung)
+    YardMap.tsx            Setzt Zonen, Halle, Straßen, Slots und TruckLayer zum SVG zusammen
 ```
 
 ### Baukasten-Prinzip
@@ -164,19 +166,32 @@ hier je Verkehrstyp unterschiedliche Ziel-Zonen und Zählregeln gelten.
 ### Fahrtwege
 
 LKW fahren nicht auf direktem Weg (Luftlinie) zu ihrem Ziel, sondern entlang
-eines einfachen Straßennetzes (`visualization/roadNetwork.ts`): einer
+eines einfachen Straßennetzes (`domain/roadNetwork.ts` - bewusst im
+Domänenmodell statt nur in der Visualisierung, siehe unten): einer
 rechteckigen Ringstraße in den Gassen zwischen den Stellplatzblöcken, plus
 einem Gate-Stichweg unten links. Jede Zone bindet über einen kurzen Stich an
 die nächstliegende Kante der Ringstraße an.
 
-**Einbahn-Rechtsverkehr:** die Ringstraße wird immer im Uhrzeigersinn befahren
-- keine Abkürzung gegen die Fahrtrichtung, egal ob ein Ziel "eigentlich"
-gegen den Uhrzeigersinn kürzer wäre. `buildRouteToSlot()` fährt vom Gate im
-Uhrzeigersinn bis zum Ziel; `buildRouteFromSlot()` fährt **ab dort in
-derselben Richtung weiter** bis zurück zum Gate (nicht einfach die Hinfahrt
-rückwärts, das wäre Linksverkehr). Das kann für Ziele nahe am
+**Einbahnverkehr, am Gate immer rechts abbiegend:** ein einfahrender LKW
+biegt am Gate-Anschlusspunkt nach rechts ab (Richtung Ostkante) und fährt
+einmal komplett gegen den Uhrzeigersinn um die Halle - keine Abkürzung in die
+Gegenrichtung, egal ob ein Ziel "eigentlich" andersherum kürzer wäre.
+`buildRouteToSlot()` fährt vom Gate in dieser Richtung bis zum Ziel;
+`buildRouteFromSlot()` fährt **ab dort in derselben Richtung weiter** bis
+zurück zum Gate (nicht einfach die Hinfahrt rückwärts, das wäre
+Gegenverkehr auf derselben Spur). Das kann für Ziele nahe am
 Gate-Anschlusspunkt bedeuten, dass die Rückfahrt einmal komplett um den Ring
 herumführt - realistisch für eine echte Einbahn-Ringstraße.
+
+**Distanzabhängige Fahrzeit:** `travelMinutesFor()` berechnet die Fahrzeit aus
+der tatsächlichen Routenlänge (feste Geschwindigkeit, Mindestdauer als
+Untergrenze für sehr kurze Strecken), statt für jede Fahrt dieselbe
+Pauschalzeit anzusetzen. Dadurch dauert eine kurze Fahrt zu einer Rampe nahe
+am Gate spürbar kürzer als eine Fahrt einmal um die ganze Halle - vorher
+waren beide gleich lang, was besonders bei den jetzt teils sehr langen
+Rückfahrten (Einbahnverkehr, siehe oben) unrealistisch wirkte. Alle
+Assignment-/Verweildauer-Bausteine (Standard wie Szenario 1) nutzen diese
+Funktion statt fester Minuten-Konstanten.
 
 **Framegenaue Bewegung statt Tick-Sprünge:** die Simulation selbst läuft in
 groben Zeitschritten (`state.movements[truckId] = { remaining, total }` pro
@@ -194,7 +209,7 @@ die ganze Karte mit allen Stellplätzen, die sich ohnehin nur bei echten
 Ticks ändert.
 
 Für einen realistischeren Look durchläuft jede Route vor der Interpolation
-`roadNetwork.ts` → `preparePath()`:
+`domain/roadNetwork.ts` → `preparePath()`:
 
 - **Fahrspur-Versatz** (`offsetRoute`): jede Route wird um wenige Pixel nach
   rechts der jeweiligen lokalen Fahrtrichtung verschoben - Hin- und Rückfahrt

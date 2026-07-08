@@ -1,3 +1,4 @@
+import { buildRouteFromSlot, travelMinutesFor } from '../../../domain/roadNetwork';
 import { GATE_EXIT } from '../../state';
 import type { SimulationModule } from '../../modules/types';
 import { trafficTypeLabel } from './types';
@@ -5,14 +6,14 @@ import { trafficTypeLabel } from './types';
 export interface Scenario1DwellConfig {
   /** Verweildauer am Tor, bevor die Ladeeinheit als "eingetroffen" gilt (System +1). */
   torDwellMinutes: number;
-  /** Fahrzeit zurück zum Gate, in Minuten. */
-  travelMinutesToGate: number;
 }
 
-const DEFAULT_CONFIG: Scenario1DwellConfig = { torDwellMinutes: 15, travelMinutesToGate: 8 };
+const DEFAULT_CONFIG: Scenario1DwellConfig = { torDwellMinutes: 15 };
 
 /**
- * Baustein: verarbeitet am Zielort angekommene LKW.
+ * Baustein: verarbeitet am Zielort angekommene LKW. Fahrzeit für die
+ * Rückfahrt richtet sich nach der tatsächlichen Streckenlänge über die
+ * Ringstraße (siehe domain/roadNetwork.ts).
  * - Abholfahrt (Leere Brücke Ausgang): koppelt sofort die dort stehende
  *   Ladeeinheit und fährt direkt zum Gate.
  * - Sgut/NV am Tor: wartet die Verweildauer ab, zählt danach System +1,
@@ -43,9 +44,10 @@ export function createScenario1DwellDepartureModule(config: Partial<Scenario1Dwe
             log(`${truck.id} koppelt ${cargo.id} (${trafficTypeLabel(cargo.reference)}) bei ${slot.id} und fährt zum Gate`);
           }
           delete state.slotOccupancy[truck.currentSlotId];
+          const travelMinutes = travelMinutesFor(buildRouteFromSlot(slot));
           truck.targetSlotId = GATE_EXIT;
           truck.status = 'moving';
-          state.movements[truck.id] = { remaining: cfg.travelMinutesToGate, total: cfg.travelMinutesToGate };
+          state.movements[truck.id] = { remaining: travelMinutes, total: travelMinutes };
           continue;
         }
 
@@ -71,9 +73,10 @@ export function createScenario1DwellDepartureModule(config: Partial<Scenario1Dwe
         state.slotOccupancy[truck.currentSlotId] = { cargoId: droppedCargo.id };
         log(`${truck.id} stellt ${droppedCargo.id} bei ${slot.id} ab und fährt leer zum Gate`);
 
+        const travelMinutes = travelMinutesFor(buildRouteFromSlot(slot));
         truck.targetSlotId = GATE_EXIT;
         truck.status = 'moving';
-        state.movements[truck.id] = { remaining: cfg.travelMinutesToGate, total: cfg.travelMinutesToGate };
+        state.movements[truck.id] = { remaining: travelMinutes, total: travelMinutes };
       }
     },
   };

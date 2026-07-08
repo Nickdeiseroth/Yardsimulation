@@ -1,3 +1,4 @@
+import { buildRouteFromSlot, travelMinutesFor } from '../../domain/roadNetwork';
 import { findAvailableCargoSlot } from '../util';
 import { GATE_EXIT } from '../state';
 import type { SimulationModule } from './types';
@@ -5,11 +6,9 @@ import type { SimulationModule } from './types';
 export interface DwellDepartureModuleConfig {
   /** Lade-/Entladezeit an der Rampe, in Minuten. */
   dwellMinutes: number;
-  /** Fahrzeit von der Rampe zum Gate, in Minuten. */
-  travelMinutesToGate: number;
 }
 
-const DEFAULT_CONFIG: DwellDepartureModuleConfig = { dwellMinutes: 25, travelMinutesToGate: 8 };
+const DEFAULT_CONFIG: DwellDepartureModuleConfig = { dwellMinutes: 25 };
 
 /**
  * Baustein: LKW an der Rampe entladen/beladen, koppeln danach - falls verfügbar -
@@ -42,6 +41,7 @@ export function createDwellDepartureModule(config: Partial<DwellDepartureModuleC
         delete state.dwellTimers[truck.id];
 
         const dockSlotId = truck.currentSlotId;
+        const dockSlot = layout.slots.find((s) => s.id === dockSlotId)!;
         const droppedCargo = truck.cargo;
         truck.cargo = undefined;
 
@@ -68,9 +68,11 @@ export function createDwellDepartureModule(config: Partial<DwellDepartureModuleC
         // currentSlotId bleibt bewusst gesetzt (= Ausgangsrampe), damit die
         // Visualisierung die Rückfahrt-Route rekonstruieren kann; movement.ts
         // räumt es erst bei Ankunft am Gate auf.
+        const travelMinutes = travelMinutesFor(buildRouteFromSlot(dockSlot));
         truck.targetSlotId = GATE_EXIT;
         truck.status = 'moving';
-        state.movements[truck.id] = { remaining: cfg.travelMinutesToGate, total: cfg.travelMinutesToGate };
+        state.movements[truck.id] = { remaining: travelMinutes, total: travelMinutes };
+        log(`${truck.id} fährt zurück zum Gate (${travelMinutes} min)`);
       }
     },
   };

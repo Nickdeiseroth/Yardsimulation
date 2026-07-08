@@ -1,21 +1,13 @@
+import { buildRouteToSlot, travelMinutesFor } from '../../domain/roadNetwork';
 import { findFreeSlot } from '../util';
 import type { SimulationModule } from './types';
 
-export interface AssignmentModuleConfig {
-  /** Fahrzeit vom Gate zu einer Rampe, in Minuten. */
-  travelMinutesToDock: number;
-}
-
-const DEFAULT_CONFIG: AssignmentModuleConfig = { travelMinutesToDock: 8 };
-
 /** Baustein: weist wartenden LKW am Gate eine freie Laderampe zu. */
-export function createAssignmentModule(config: Partial<AssignmentModuleConfig> = {}): SimulationModule {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
-
+export function createAssignmentModule(): SimulationModule {
   return {
     id: 'standard-assignment',
     label: 'Standard-Rampenzuweisung',
-    description: `Weist LKW am Gate die nächste freie passende Laderampe zu (Fahrzeit ${cfg.travelMinutesToDock} min).`,
+    description: 'Weist LKW am Gate die nächste freie passende Laderampe zu (Fahrzeit richtet sich nach der tatsächlichen Streckenlänge).',
     onTick(ctx) {
       const { state, layout, log } = ctx;
       if (state.gateQueue.length === 0) return;
@@ -32,11 +24,12 @@ export function createAssignmentModule(config: Partial<AssignmentModuleConfig> =
           stillWaiting.push(truckId);
           continue;
         }
+        const travelMinutes = travelMinutesFor(buildRouteToSlot(freeSlot));
         truck.targetSlotId = freeSlot.id;
         truck.status = 'moving';
-        state.movements[truckId] = { remaining: cfg.travelMinutesToDock, total: cfg.travelMinutesToDock };
+        state.movements[truckId] = { remaining: travelMinutes, total: travelMinutes };
         state.slotOccupancy[freeSlot.id] = { truckId };
-        log(`${truckId} fährt zu Rampe ${freeSlot.id}`);
+        log(`${truckId} fährt zu Rampe ${freeSlot.id} (${travelMinutes} min)`);
       }
       state.gateQueue = stillWaiting;
     },

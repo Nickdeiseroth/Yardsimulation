@@ -1,4 +1,4 @@
-import type { Slot } from '../domain/types';
+import type { Slot } from './types';
 
 export interface Point {
   x: number;
@@ -15,7 +15,9 @@ export interface Point {
  * Das ist bewusst kein echtes Pathfinding, sondern eine feste, an den
  * Lageplan angelehnte Geometrie - ausreichend, um LKW-Fahrten nachvollziehbar
  * entlang von "Straßen" zu animieren statt sie geradlinig durch Gebäude
- * fahren zu lassen.
+ * fahren zu lassen. Liegt bewusst in `domain/` statt `visualization/`: sowohl
+ * die Simulation (realistische, distanzabhängige Fahrzeiten) als auch die
+ * Darstellung brauchen dieselbe Geometrie.
  */
 const WEST_X = 75;
 const EAST_X = 1125;
@@ -33,15 +35,15 @@ export const GATE: Point = { x: 745, y: 1080 };
 const GATE_STUB: Point[] = [GATE, GATE_JUNCTION];
 
 /**
- * Eckpunkte im Uhrzeigersinn (Rechtsverkehr), beginnend am Gate-Anschlusspunkt:
- * erst zur SW-Ecke, dann rundherum (Nord-, Ost-, Südkante) zurück zur SE-Ecke,
- * von wo aus das letzte Reststück der Südkante wieder zum Gate-Anschlusspunkt
- * führt und den Ring schließt. Der Verkehr fährt **immer** in dieser
- * Reihenfolge - keine Abkürzung gegen den Uhrzeigersinn, auch wenn ein Ziel
- * "eigentlich" auf der Gegenseite kürzer erreichbar wäre. Das ist eine feste
- * Einbahn-Ringstraße, wie sie reale Yards zur Verkehrsführung nutzen.
+ * Eckpunkte in Fahrtrichtung, beginnend am Gate-Anschlusspunkt: einfahrende
+ * LKW biegen dort **rechts** ab (Richtung Ostkante/SE), fahren dann gegen den
+ * Uhrzeigersinn einmal um die Halle (Ost-, Nord-, Westkante) und schließen
+ * über das letzte Reststück der Südkante wieder zum Gate-Anschlusspunkt.
+ * Der Verkehr fährt **immer** in dieser Reihenfolge - keine Abkürzung in die
+ * Gegenrichtung, auch wenn ein Ziel "eigentlich" andersherum kürzer wäre.
+ * Das ist eine feste Einbahn-Ringstraße, wie sie reale Yards nutzen.
  */
-const corners: Point[] = [GATE_JUNCTION, SW, NW, NE, SE];
+const corners: Point[] = [GATE_JUNCTION, SE, NE, NW, SW];
 const edgeCount = corners.length;
 
 /** Statische Streckenführung, für die Hintergrund-Darstellung der Straßen. */
@@ -64,37 +66,37 @@ function edgeAndPointFor(slot: Slot): { edgeIndex: number; point: Point } {
     case 'ang':
       return { edgeIndex: 2, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
     case 'dock':
-      if (slot.x > 950) return { edgeIndex: 3, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
+      if (slot.x > 950) return { edgeIndex: 1, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
       if (slot.y < 450) return { edgeIndex: 2, point: { x: clamp(cx, NW.x, NE.x), y: NORTH_Y } };
       return southEdgePoint(cx);
     case 'umw':
-      return { edgeIndex: 1, point: { x: WEST_X, y: clamp(cy, NW.y, SW.y) } };
+      return { edgeIndex: 3, point: { x: WEST_X, y: clamp(cy, NW.y, SW.y) } };
     case 'umo':
     case 'wkst':
-      return { edgeIndex: 3, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
+      return { edgeIndex: 1, point: { x: EAST_X, y: clamp(cy, NE.y, SE.y) } };
     default:
       // pprd, def, sa, pp und alles Weitere: Anbindung über die Südkante.
       return southEdgePoint(cx);
   }
 }
 
-/** Südkante ist am Gate-Anschlusspunkt in zwei Teilstücke gesplittet (edge0: Richtung SW, edge4: Richtung SE). */
+/** Südkante ist am Gate-Anschlusspunkt in zwei Teilstücke gesplittet (edge0: Richtung SE, edge4: Richtung SW). */
 function southEdgePoint(cx: number): { edgeIndex: number; point: Point } {
   const x = clamp(cx, SW.x, SE.x);
-  return x <= GATE_JUNCTION.x ? { edgeIndex: 0, point: { x, y: SOUTH_Y } } : { edgeIndex: edgeCount - 1, point: { x, y: SOUTH_Y } };
+  return x >= GATE_JUNCTION.x ? { edgeIndex: 0, point: { x, y: SOUTH_Y } } : { edgeIndex: edgeCount - 1, point: { x, y: SOUTH_Y } };
 }
 
-/** Im Uhrzeigersinn vom Gate-Anschlusspunkt (corners[0]) bis zu `point` auf `edgeIndex`. */
+/** In Fahrtrichtung vom Gate-Anschlusspunkt (corners[0]) bis zu `point` auf `edgeIndex`. */
 function loopPathTo(edgeIndex: number, point: Point): Point[] {
   return [...corners.slice(0, edgeIndex + 1), point];
 }
 
-/** Im Uhrzeigersinn von `point` auf `edgeIndex` weiter bis zurück zum Gate-Anschlusspunkt. */
+/** In Fahrtrichtung von `point` auf `edgeIndex` weiter bis zurück zum Gate-Anschlusspunkt. */
 function loopPathFrom(edgeIndex: number, point: Point): Point[] {
   return [point, ...corners.slice(edgeIndex + 1), corners[0]];
 }
 
-/** Route vom Gate zu einem Slot - immer im Uhrzeigersinn entlang der Ringstraße. */
+/** Route vom Gate zu einem Slot - immer rechts abbiegend, entgegen dem Uhrzeigersinn um die Halle. */
 export function buildRouteToSlot(slot: Slot): Point[] {
   const { edgeIndex, point } = edgeAndPointFor(slot);
   const loopPath = loopPathTo(edgeIndex, point);
@@ -104,14 +106,36 @@ export function buildRouteToSlot(slot: Slot): Point[] {
 
 /**
  * Route von einem Slot zurück zum Gate - fährt den Ring **in derselben
- * Richtung weiter** (im Uhrzeigersinn) bis zum Gate-Anschlusspunkt, statt die
- * Hinfahrt einfach rückwärts abzuspielen (das wäre Linksverkehr).
+ * Richtung weiter** bis zum Gate-Anschlusspunkt, statt die Hinfahrt einfach
+ * rückwärts abzuspielen (das wäre Gegenverkehr auf derselben Spur).
  */
 export function buildRouteFromSlot(slot: Slot): Point[] {
   const { edgeIndex, point } = edgeAndPointFor(slot);
   const loopPath = loopPathFrom(edgeIndex, point);
   const slotCenter: Point = { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 };
   return [slotCenter, ...loopPath, GATE];
+}
+
+/** Gesamtlänge einer Route (Summe der Segmentlängen), in Karten-Einheiten. */
+export function routeLength(route: Point[]): number {
+  let total = 0;
+  for (let i = 0; i < route.length - 1; i++) total += dist(route[i], route[i + 1]);
+  return total;
+}
+
+/** Wieviel Karten-Einheiten ein Fahrzeug pro simulierter Minute zurücklegt. */
+const YARD_SPEED_PER_MINUTE = 130;
+/** Untergrenze, damit auch sehr kurze Strecken (z.B. Slot direkt am Gate) nicht unrealistisch sofort abgefahren sind. */
+const MIN_TRAVEL_MINUTES = 4;
+
+/**
+ * Realistische, distanzabhängige Fahrzeit für eine Route: lange Strecken
+ * (z.B. einmal um die Halle) dauern spürbar länger als kurze - statt einer
+ * für alle Ziele gleichen Pauschalzeit, die bei langen Strecken wie ein
+ * Sprung und bei kurzen wie Zeitlupe wirkt.
+ */
+export function travelMinutesFor(route: Point[]): number {
+  return Math.max(MIN_TRAVEL_MINUTES, Math.round(routeLength(route) / YARD_SPEED_PER_MINUTE));
 }
 
 const LANE_OFFSET = 3.2;

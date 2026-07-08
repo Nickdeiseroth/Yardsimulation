@@ -2,7 +2,7 @@ import { yardLayout } from '../domain/yardLayout';
 import type { SimulationState } from '../simulation/state';
 import { SlotRect } from './SlotRect';
 import { TruckLayer } from './TruckLayer';
-import { GATE, roadNetworkPolyline, roundedRoute } from './roadNetwork';
+import { GATE, roadNetworkPolyline, roundedRoute } from '../domain/roadNetwork';
 import { zoneBackground } from './colors';
 
 const ZONE_PADDING = 8;

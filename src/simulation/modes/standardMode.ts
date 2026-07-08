@@ -1,5 +1,5 @@
 import { createArrivalModule, type ArrivalModuleConfig } from '../modules/arrival';
-import { createAssignmentModule, type AssignmentModuleConfig } from '../modules/assignment';
+import { createAssignmentModule } from '../modules/assignment';
 import { createMovementModule } from '../modules/movement';
 import { createDwellDepartureModule, type DwellDepartureModuleConfig } from '../modules/dwellDeparture';
 import { createShuntingModule } from '../modules/shunting';
@@ -8,7 +8,6 @@ import type { SimulationModule } from '../modules/types';
 
 export interface StandardModeConfig {
   arrival?: Partial<ArrivalModuleConfig>;
-  assignment?: Partial<AssignmentModuleConfig>;
   dwellDeparture?: Partial<DwellDepartureModuleConfig>;
 }
 
@@ -24,7 +23,7 @@ export interface StandardModeConfig {
 export function createStandardMode(config: StandardModeConfig = {}): SimulationModule[] {
   return [
     createArrivalModule(config.arrival),
-    createAssignmentModule(config.assignment),
+    createAssignmentModule(),
     createMovementModule(),
     createDwellDepartureModule(config.dwellDeparture),
     createShuntingModule(),

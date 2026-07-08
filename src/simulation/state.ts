@@ -24,7 +24,7 @@ export interface SimulationState {
    * truckId -> laufende Fahrt zum Ziel-Slot bzw. Gate. `total` bleibt über die
    * gesamte Fahrt konstant, `remaining` zählt runter - daraus lässt sich der
    * Fortschritt (0..1) für die Positions-Interpolation in der Visualisierung
-   * ableiten (siehe visualization/roadNetwork.ts).
+   * ableiten (siehe domain/roadNetwork.ts).
    */
   movements: Record<string, { remaining: number; total: number }>;
   /** truckId -> verbleibende Minuten Lade-/Entladezeit an der Rampe. */

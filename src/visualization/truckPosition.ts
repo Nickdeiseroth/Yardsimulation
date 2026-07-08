@@ -2,7 +2,7 @@ import type { Truck } from '../domain/types';
 import { slotById } from '../domain/yardLayout';
 import type { SimulationState } from '../simulation/state';
 import { GATE_EXIT } from '../simulation/state';
-import { buildRouteFromSlot, buildRouteToSlot, easeInOutCubic, GATE, pointAtProgress, preparePath, type RoutePosition } from './roadNetwork';
+import { buildRouteFromSlot, buildRouteToSlot, easeInOutCubic, GATE, pointAtProgress, preparePath, type RoutePosition } from '../domain/roadNetwork';
 
 /**
  * Ermittelt Bildschirmposition + Blickrichtung eines LKW.

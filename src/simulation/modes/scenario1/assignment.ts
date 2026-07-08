@@ -1,23 +1,16 @@
+import { buildRouteToSlot, travelMinutesFor } from '../../../domain/roadNetwork';
 import { findAvailableCargoSlot, findFreeSlot } from '../../util';
 import type { SimulationModule } from '../../modules/types';
 import { arrivesViaGate } from './types';
-
-export interface Scenario1AssignmentConfig {
-  /** Fahrzeit vom Gate zum Ziel-Slot, in Minuten. */
-  travelMinutes: number;
-}
-
-const DEFAULT_CONFIG: Scenario1AssignmentConfig = { travelMinutes: 8 };
 
 /**
  * Baustein: routet LKW am Gate je nach Verkehrstyp - Sgut/NV zu einer freien
  * Laderampe (Tor), Leere Brücke Eingang direkt zu einem freien LEWB-Platz,
  * Abholfahrten (Leere Brücke Ausgang) zu dem LEWB-Platz, auf dem die passende
- * Ladeeinheit bereits steht.
+ * Ladeeinheit bereits steht. Fahrzeit richtet sich nach der tatsächlichen
+ * Streckenlänge über die Ringstraße.
  */
-export function createScenario1AssignmentModule(config: Partial<Scenario1AssignmentConfig> = {}): SimulationModule {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
-
+export function createScenario1AssignmentModule(): SimulationModule {
   return {
     id: 'scenario1-assignment',
     label: 'Szenario-1-Zuweisung',
@@ -44,12 +37,13 @@ export function createScenario1AssignmentModule(config: Partial<Scenario1Assignm
           continue;
         }
 
+        const travelMinutes = travelMinutesFor(buildRouteToSlot(targetSlot));
         truck.targetSlotId = targetSlot.id;
         truck.status = 'moving';
-        state.movements[truckId] = { remaining: cfg.travelMinutes, total: cfg.travelMinutes };
+        state.movements[truckId] = { remaining: travelMinutes, total: travelMinutes };
         const existing = state.slotOccupancy[targetSlot.id];
         state.slotOccupancy[targetSlot.id] = { ...existing, truckId };
-        log(`${truckId} fährt zu ${targetSlot.id}`);
+        log(`${truckId} fährt zu ${targetSlot.id} (${travelMinutes} min)`);
       }
       state.gateQueue = stillWaiting;
     },
