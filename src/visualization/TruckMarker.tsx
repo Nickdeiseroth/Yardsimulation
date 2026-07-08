@@ -21,7 +21,11 @@ export function TruckMarker({ x, y, heading, cargoType, label, moving }: TruckMa
       style={{
         transform: `translate(${x}px, ${y}px) rotate(${heading}deg)`,
         transformOrigin: '0px 0px',
-        transition: moving ? 'transform 0.45s linear' : 'transform 0.3s ease-out',
+        // Bei Bewegung wird die Position bereits jeden Animationsframe exakt
+        // berechnet (siehe TruckLayer/subTickProgress) - nur eine minimale
+        // Transition, um Frame-Timing-Jitter zu glätten, ohne spürbar
+        // hinterherzuhinken. Beim Einparken (Statuswechsel) etwas mehr Ease.
+        transition: moving ? 'transform 0.1s linear' : 'transform 0.25s ease-out',
       }}
     >
       <title>{label}</title>

@@ -71,6 +71,8 @@ function defaultConfigFor(modeId: string): Record<string, number> {
 
 const TICKS_PER_SECOND_AT_SPEED_1 = 1;
 const INITIAL_MODE_ID = 'standard';
+/** Kappt große Zeitsprünge (z.B. Tab im Hintergrund) statt Ticks aufzuholen. */
+const MAX_FRAME_DELTA_MS = 250;
 
 interface SimulationStoreState {
   engine: SimulationEngine;
@@ -81,7 +83,16 @@ interface SimulationStoreState {
   running: boolean;
   /** Geschwindigkeitsfaktor der Wiedergabe (1 = 1 Tick/s). */
   speed: number;
-  intervalHandle: ReturnType<typeof setInterval> | null;
+  /**
+   * Wie weit der nächste, noch nicht angewandte Tick bereits "virtuell"
+   * vergangen ist (0..1) - treibt die framegenaue Zwischeninterpolation der
+   * Fahrzeugbewegung an, siehe visualization/TruckLayer.tsx.
+   */
+  subTickProgress: number;
+  /** Aufgelaufene reale Millisekunden seit dem letzten angewandten Tick. */
+  tickAccumulatorMs: number;
+  animationFrameHandle: number | null;
+  lastFrameTime: number | null;
 
   step: () => void;
   play: () => void;
@@ -101,6 +112,31 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => {
   const initialModeDef = availableModes.find((m) => m.id === INITIAL_MODE_ID)!;
   const engine = new SimulationEngine({ layout: yardLayout, modules: initialModeDef.build(initialConfig) });
 
+  const runFrame = (now: number) => {
+    const s = get();
+    if (!s.running) return;
+
+    const last = s.lastFrameTime ?? now;
+    const deltaMs = Math.min(now - last, MAX_FRAME_DELTA_MS);
+    const msPerTick = 1000 / (TICKS_PER_SECOND_AT_SPEED_1 * s.speed);
+
+    let accMs = s.tickAccumulatorMs + deltaMs;
+    let ticked = false;
+    while (accMs >= msPerTick) {
+      s.engine.tick();
+      accMs -= msPerTick;
+      ticked = true;
+    }
+
+    set({
+      lastFrameTime: now,
+      tickAccumulatorMs: accMs,
+      subTickProgress: accMs / msPerTick,
+      ...(ticked ? { snapshot: snapshotOf(s.engine) } : {}),
+    });
+    set({ animationFrameHandle: requestAnimationFrame(runFrame) });
+  };
+
   return {
     engine,
     snapshot: snapshotOf(engine),
@@ -108,42 +144,37 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => {
     scenarioConfig: initialConfig,
     running: false,
     speed: 1,
-    intervalHandle: null,
+    subTickProgress: 0,
+    tickAccumulatorMs: 0,
+    animationFrameHandle: null,
+    lastFrameTime: null,
 
     step: () => {
+      get().pause();
       get().engine.tick();
-      set({ snapshot: snapshotOf(get().engine) });
+      set({ snapshot: snapshotOf(get().engine), tickAccumulatorMs: 0, subTickProgress: 0 });
     },
 
     play: () => {
-      if (get().intervalHandle) return;
-      const handle = setInterval(() => {
-        get().engine.tick();
-        set({ snapshot: snapshotOf(get().engine) });
-      }, 1000 / (TICKS_PER_SECOND_AT_SPEED_1 * get().speed));
-      set({ running: true, intervalHandle: handle });
+      if (get().animationFrameHandle !== null) return;
+      set({ running: true, lastFrameTime: null });
+      set({ animationFrameHandle: requestAnimationFrame(runFrame) });
     },
 
     pause: () => {
-      const handle = get().intervalHandle;
-      if (handle) clearInterval(handle);
-      set({ running: false, intervalHandle: null });
+      const handle = get().animationFrameHandle;
+      if (handle !== null) cancelAnimationFrame(handle);
+      set({ running: false, animationFrameHandle: null, lastFrameTime: null });
     },
 
-    setSpeed: (speed) => {
-      set({ speed });
-      if (get().running) {
-        get().pause();
-        get().play();
-      }
-    },
+    setSpeed: (speed) => set({ speed }),
 
     reset: () => {
       get().pause();
       const modeDef = availableModes.find((m) => m.id === get().modeId) ?? availableModes[0];
       get().engine.setModules(modeDef.build(get().scenarioConfig));
       get().engine.reset();
-      set({ snapshot: snapshotOf(get().engine) });
+      set({ snapshot: snapshotOf(get().engine), tickAccumulatorMs: 0, subTickProgress: 0 });
     },
 
     setMode: (modeId) => {
@@ -153,7 +184,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => {
       const config = defaultConfigFor(modeId);
       get().engine.setModules(modeDef.build(config));
       get().engine.reset();
-      set({ modeId, scenarioConfig: config, snapshot: snapshotOf(get().engine) });
+      set({ modeId, scenarioConfig: config, snapshot: snapshotOf(get().engine), tickAccumulatorMs: 0, subTickProgress: 0 });
     },
 
     setConfigValue: (key, value) => {

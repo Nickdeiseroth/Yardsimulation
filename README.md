@@ -167,17 +167,31 @@ LKW fahren nicht auf direktem Weg (Luftlinie) zu ihrem Ziel, sondern entlang
 eines einfachen Straßennetzes (`visualization/roadNetwork.ts`): einer
 rechteckigen Ringstraße in den Gassen zwischen den Stellplatzblöcken, plus
 einem Gate-Stichweg unten links. Jede Zone bindet über einen kurzen Stich an
-die nächstliegende Kante der Ringstraße an; die Route von/zum Gate nimmt
-jeweils den kürzeren Weg um den Ring (im bzw. gegen den Uhrzeigersinn).
+die nächstliegende Kante der Ringstraße an.
 
-Damit das funktioniert, hält der Simulationsstate pro laufender Fahrt nicht
-nur die Restzeit, sondern auch die Gesamtdauer (`state.movements[truckId] =
-{ remaining, total }`) sowie Ausgangs- und Zielort (`truck.currentSlotId` /
-`truck.targetSlotId`, bleibt während der Fahrt gesetzt). Aus Fortschritt
-(`1 - remaining/total`) und der berechneten Route interpoliert
-`visualization/truckPosition.ts` Bildschirmposition und Blickrichtung; die
-`TruckMarker`-Komponente animiert das per CSS-Transition zwischen zwei
-Simulations-Ticks weich statt sprunghaft.
+**Einbahn-Rechtsverkehr:** die Ringstraße wird immer im Uhrzeigersinn befahren
+- keine Abkürzung gegen die Fahrtrichtung, egal ob ein Ziel "eigentlich"
+gegen den Uhrzeigersinn kürzer wäre. `buildRouteToSlot()` fährt vom Gate im
+Uhrzeigersinn bis zum Ziel; `buildRouteFromSlot()` fährt **ab dort in
+derselben Richtung weiter** bis zurück zum Gate (nicht einfach die Hinfahrt
+rückwärts, das wäre Linksverkehr). Das kann für Ziele nahe am
+Gate-Anschlusspunkt bedeuten, dass die Rückfahrt einmal komplett um den Ring
+herumführt - realistisch für eine echte Einbahn-Ringstraße.
+
+**Framegenaue Bewegung statt Tick-Sprünge:** die Simulation selbst läuft in
+groben Zeitschritten (`state.movements[truckId] = { remaining, total }` pro
+laufender Fahrt), aber die Wiedergabe-Schleife im Store
+(`store/simulationStore.ts`) nutzt `requestAnimationFrame` statt `setInterval`
+und führt einen `tickAccumulatorMs`/`subTickProgress`, der angibt, wie weit
+der nächste (noch nicht angewandte) Tick bereits "virtuell" vergangen ist.
+`visualization/truckPosition.ts` verrechnet das mit der Restzeit
+(`remaining - minutesPerTick * subTickProgress`), sodass die Position **jeden
+Frame** (60fps) neu berechnet wird und der LKW die Strecke durchgehend
+abfährt, statt zwischen den (viel selteneren) Simulations-Ticks zu springen.
+`visualization/TruckLayer.tsx` kapselt diesen Frame-getriebenen Teilbaum
+bewusst separat, damit nur die LKW-Symbole jeden Frame neu rendern - nicht
+die ganze Karte mit allen Stellplätzen, die sich ohnehin nur bei echten
+Ticks ändert.
 
 Für einen realistischeren Look durchläuft jede Route vor der Interpolation
 `roadNetwork.ts` → `preparePath()`:

@@ -22,7 +22,7 @@ export class SimulationEngine {
   private modules: SimulationModule[];
   private seed: number;
   private rng: () => number;
-  private minutesPerTick: number;
+  private _minutesPerTick: number;
   state: SimulationState;
 
   constructor(options: EngineOptions) {
@@ -30,7 +30,7 @@ export class SimulationEngine {
     this.modules = options.modules;
     this.seed = options.seed ?? 42;
     this.rng = createRng(this.seed);
-    this.minutesPerTick = options.minutesPerTick ?? 5;
+    this._minutesPerTick = options.minutesPerTick ?? 5;
     this.state = createInitialState();
     this.runInit();
   }
@@ -48,6 +48,11 @@ export class SimulationEngine {
 
   get activeModules(): SimulationModule[] {
     return this.modules;
+  }
+
+  /** Simulierte Minuten pro Tick - für Visualisierungen, die zwischen Ticks weich interpolieren wollen. */
+  get minutesPerTick(): number {
+    return this._minutesPerTick;
   }
 
   private buildContext(): TickContext {

@@ -1,8 +1,7 @@
 import { yardLayout } from '../domain/yardLayout';
 import type { SimulationState } from '../simulation/state';
 import { SlotRect } from './SlotRect';
-import { TruckMarker } from './TruckMarker';
-import { getTruckMarkerPosition } from './truckPosition';
+import { TruckLayer } from './TruckLayer';
 import { GATE, roadNetworkPolyline, roundedRoute } from './roadNetwork';
 import { zoneBackground } from './colors';
 
@@ -51,8 +50,6 @@ interface YardMapProps {
 }
 
 export function YardMap({ snapshot }: YardMapProps) {
-  const activeTrucks = Object.values(snapshot.trucks).filter((t) => t.status !== 'departed');
-
   return (
     <svg
       viewBox={`0 0 ${yardLayout.bounds.width} ${yardLayout.bounds.height}`}
@@ -136,20 +133,7 @@ export function YardMap({ snapshot }: YardMapProps) {
         })}
       </g>
 
-      {activeTrucks.map((truck) => {
-        const { point, heading } = getTruckMarkerPosition(truck, snapshot);
-        return (
-          <TruckMarker
-            key={truck.id}
-            x={point.x}
-            y={point.y}
-            heading={heading}
-            cargoType={truck.cargo?.type}
-            moving={truck.status === 'moving'}
-            label={`${truck.id} (${truck.licensePlate})${truck.cargo ? ` – ${truck.cargo.type} ${truck.cargo.id}` : ' – solo'}`}
-          />
-        );
-      })}
+      <TruckLayer />
     </svg>
   );
 }

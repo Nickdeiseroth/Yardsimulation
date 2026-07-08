@@ -33,16 +33,16 @@ export const GATE: Point = { x: 745, y: 1080 };
 const GATE_STUB: Point[] = [GATE, GATE_JUNCTION];
 
 /**
- * Eckpunkte im Uhrzeigersinn, beginnend am Gate-Anschlusspunkt: von dort erst
- * zur SW-Ecke (kürzeres Reststück der Südkante), dann rundherum bis zurück
- * zur SE-Ecke (das andere Reststück der Südkante schließt den Ring wieder am
- * Gate-Anschlusspunkt).
+ * Eckpunkte im Uhrzeigersinn (Rechtsverkehr), beginnend am Gate-Anschlusspunkt:
+ * erst zur SW-Ecke, dann rundherum (Nord-, Ost-, Südkante) zurück zur SE-Ecke,
+ * von wo aus das letzte Reststück der Südkante wieder zum Gate-Anschlusspunkt
+ * führt und den Ring schließt. Der Verkehr fährt **immer** in dieser
+ * Reihenfolge - keine Abkürzung gegen den Uhrzeigersinn, auch wenn ein Ziel
+ * "eigentlich" auf der Gegenseite kürzer erreichbar wäre. Das ist eine feste
+ * Einbahn-Ringstraße, wie sie reale Yards zur Verkehrsführung nutzen.
  */
 const corners: Point[] = [GATE_JUNCTION, SW, NW, NE, SE];
 const edgeCount = corners.length;
-const edgeLengths = corners.map((c, i) => dist(c, corners[(i + 1) % edgeCount]));
-const cumulative = edgeLengths.reduce<number[]>((acc, len, i) => [...acc, (acc[i] ?? 0) + len], [0]).slice(0, edgeCount);
-const totalPerimeter = edgeLengths.reduce((a, b) => a + b, 0);
 
 /** Statische Streckenführung, für die Hintergrund-Darstellung der Straßen. */
 export const roadNetworkPolyline: Point[] = [...GATE_STUB, ...corners.slice(1), GATE_JUNCTION];
@@ -84,25 +84,34 @@ function southEdgePoint(cx: number): { edgeIndex: number; point: Point } {
   return x <= GATE_JUNCTION.x ? { edgeIndex: 0, point: { x, y: SOUTH_Y } } : { edgeIndex: edgeCount - 1, point: { x, y: SOUTH_Y } };
 }
 
-function buildLoopPath(edgeIndex: number, point: Point): Point[] {
-  const clockwiseDist = cumulative[edgeIndex] + dist(corners[edgeIndex], point);
-  const counterClockwiseDist = totalPerimeter - clockwiseDist;
-
-  if (clockwiseDist <= counterClockwiseDist) {
-    return [...corners.slice(0, edgeIndex + 1), point];
-  }
-  const pts = [corners[0]];
-  for (let k = edgeCount - 1; k >= edgeIndex + 1; k--) pts.push(corners[k]);
-  pts.push(point);
-  return pts;
+/** Im Uhrzeigersinn vom Gate-Anschlusspunkt (corners[0]) bis zu `point` auf `edgeIndex`. */
+function loopPathTo(edgeIndex: number, point: Point): Point[] {
+  return [...corners.slice(0, edgeIndex + 1), point];
 }
 
-/** Route vom Gate zu einem Slot (kürzerer Weg entlang der Ringstraße + Anbindungsstich). */
+/** Im Uhrzeigersinn von `point` auf `edgeIndex` weiter bis zurück zum Gate-Anschlusspunkt. */
+function loopPathFrom(edgeIndex: number, point: Point): Point[] {
+  return [point, ...corners.slice(edgeIndex + 1), corners[0]];
+}
+
+/** Route vom Gate zu einem Slot - immer im Uhrzeigersinn entlang der Ringstraße. */
 export function buildRouteToSlot(slot: Slot): Point[] {
   const { edgeIndex, point } = edgeAndPointFor(slot);
-  const loopPath = buildLoopPath(edgeIndex, point);
+  const loopPath = loopPathTo(edgeIndex, point);
   const slotCenter: Point = { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 };
   return [...GATE_STUB, ...loopPath.slice(1), slotCenter];
+}
+
+/**
+ * Route von einem Slot zurück zum Gate - fährt den Ring **in derselben
+ * Richtung weiter** (im Uhrzeigersinn) bis zum Gate-Anschlusspunkt, statt die
+ * Hinfahrt einfach rückwärts abzuspielen (das wäre Linksverkehr).
+ */
+export function buildRouteFromSlot(slot: Slot): Point[] {
+  const { edgeIndex, point } = edgeAndPointFor(slot);
+  const loopPath = loopPathFrom(edgeIndex, point);
+  const slotCenter: Point = { x: slot.x + slot.width / 2, y: slot.y + slot.height / 2 };
+  return [slotCenter, ...loopPath, GATE];
 }
 
 const LANE_OFFSET = 3.2;
