@@ -14,14 +14,19 @@ const STARTS_WITH_CARGO: Record<TrafficTypeTag2, boolean> = {
 /**
  * Baustein: löst geplante Ankünfte/Abfahrten aus `state.scheduledSpawns` aus,
  * sobald die Simulationszeit den geplanten Zeitpunkt erreicht (kann pro Tick
- * mehrere gleichzeitig fällige Einträge abarbeiten). Jede Einfahrt zählt
- * Physisch +1 (gilt für alle Verkehrsarten gleichermaßen).
+ * mehrere gleichzeitig fällige Einträge abarbeiten).
+ *
+ * Physisch zählt Wechselbrücken, nicht LKW: Sammelgut/Nahverkehr Ausgang und
+ * Leerbrücke Ausgang kommen als leere Zugmaschine auf den Hof (die Brücke,
+ * die sie später mitnehmen, steht dort schon und wurde bereits gezählt) -
+ * deshalb gibt es hier nur dann Physisch +1, wenn tatsächlich eine Brücke
+ * mit einfährt (siehe departureCounter.ts für die spiegelbildliche Abfahrt-Logik).
  */
 export function createScenario2ArrivalModule(): SimulationModule {
   return {
     id: 'scenario2-arrival',
     label: 'Szenario-2-Ankunft',
-    description: 'Löst geplante Ankünfte/Abfahrten zur vorgesehenen Uhrzeit aus (Physisch +1 bei jeder Einfahrt).',
+    description: 'Löst geplante Ankünfte/Abfahrten zur vorgesehenen Uhrzeit aus (Physisch +1, wenn eine Brücke mit einfährt).',
     onTick(ctx) {
       const { state, rng, log } = ctx;
 
@@ -29,8 +34,9 @@ export function createScenario2ArrivalModule(): SimulationModule {
         const entry = state.scheduledSpawns.shift()!;
         const tag = entry.tag as TrafficTypeTag2;
         const truckId = `LKW-${state.nextTruckSeq++}`;
+        const startsWithCargo = STARTS_WITH_CARGO[tag];
 
-        if (STARTS_WITH_CARGO[tag]) {
+        if (startsWithCargo) {
           const cargoId = `CU-${state.nextCargoSeq++}`;
           state.cargoUnits[cargoId] = { id: cargoId, type: 'wechselbruecke', reference: tag, defect: false };
           state.trucks[truckId] = {
@@ -50,9 +56,13 @@ export function createScenario2ArrivalModule(): SimulationModule {
         }
 
         state.gateQueue.push(truckId);
-        state.counters.physical = (state.counters.physical ?? 0) + 1;
         state.records.push({ tag, kind: 'einfahrt', time: state.time });
-        log(`${truckId} (${trafficLabel2(tag)}) fährt auf den Hof - Physisch +1`);
+        if (startsWithCargo) {
+          state.counters.physical = (state.counters.physical ?? 0) + 1;
+          log(`${truckId} (${trafficLabel2(tag)}) fährt mit Brücke auf den Hof - Physisch +1`);
+        } else {
+          log(`${truckId} (${trafficLabel2(tag)}) fährt leer auf den Hof, um eine Brücke abzuholen`);
+        }
       }
     },
   };

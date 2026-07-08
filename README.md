@@ -180,11 +180,21 @@ Dritter Modus. Anders als Szenario 1 (feste Reihenfolge, kein Zeitbezug) sind
 hier alle sechs Verkehrsarten an feste **Uhrzeitfenster** und **Tor-Nummernbereiche**
 gebunden und laufen über einen simulierten 24-Stunden-Tag (Minute 0 = 00:00,
 Minute 1440 = 24:00 - danach werden keine neuen Fahrten mehr geplant, laufende
-werden aber zu Ende gefahren). Zusätzlich zu Physisch/System (wie Szenario 1,
-aber jetzt **einheitlich**: jede Einfahrt +1, jede Ausfahrt -1, unabhängig von
-der Verkehrsart) lässt sich ein **Hofbestand** hinterlegen - eine Anzahl leerer
-Wechselbrücken, die zu Simulationsbeginn bereits bei LEWB stehen und sofort
-im System gebucht sind.
+werden aber zu Ende gefahren). Zusätzlich lässt sich ein **Hofbestand**
+hinterlegen - eine Anzahl leerer Wechselbrücken, die zu Simulationsbeginn
+bereits bei LEWB stehen und sofort im System gebucht sind.
+
+**Physisch zählt Brücken, nicht LKW:** Sammelgut/Nahverkehr Ausgang und
+Leerbrücke Ausgang fahren als leere Zugmaschine auf den Hof - die Brücke, die
+sie mitnehmen, steht dort bereits und wurde schon gezählt, also gibt es bei
+ihrer Einfahrt kein Physisch +1. Erst wenn sie den Hof mit der gekoppelten
+Brücke tatsächlich wieder verlassen, zählt Physisch -1. Umgekehrt bringen
+Sammelgut/Nahverkehr Eingang und Leerbrücke Eingang ihre Brücke mit rein
+(Physisch +1 bei Einfahrt), fahren aber leer wieder raus, sobald sie
+abgestellt ist - das darf Physisch nicht nochmal verändern. Kurz: Physisch
++1/-1 hängt daran, ob der LKW in dem Moment tatsächlich eine Ladeeinheit
+gekoppelt hat, nicht daran, ob überhaupt ein LKW kommt oder geht
+(`scheduledArrival.ts` bzw. `departureCounter.ts`).
 
 | Verkehrsart | Zeitfenster | Tor | Ablauf | System |
 |---|---|---|---|---|
